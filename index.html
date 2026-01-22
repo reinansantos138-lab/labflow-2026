@@ -63,10 +63,11 @@
         const SETORES = ['QGI', 'ESP', 'FQA', 'FRASCARIA', 'CRO', 'MIC', 'OUTROS']; 
         const SENHA_LOGISTICA = "cimatec2026";
         const SENHA_ADMIN = "adm2026";
+        const SENHA_MASTER = "master2026"; // Senha do Gestor do Sistema
 
         // DEFINIÇÃO DE CATEGORIAS E RESPONSABILIDADES
         const CAT_GROUPS = {
-            logistics: ['reagente', 'materiais', 'consumivel_log', 'consumivel'], // 'consumivel' antigo mantido aqui
+            logistics: ['reagente', 'materiais', 'consumivel_log', 'consumivel'], 
             admin: ['epi', 'escritorio', 'consumivel_adm']
         };
 
@@ -114,7 +115,8 @@
             History: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>,
             RefreshCw: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>,
             Edit: () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-            Scissors: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" x2="8.12" y1="4" y2="15.88"/><line x1="14.47" x2="20" y1="14.48" y2="20"/><line x1="8.12" x2="12" y1="8.12" y2="12"/></svg>
+            Scissors: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" x2="8.12" y1="4" y2="15.88"/><line x1="14.47" x2="20" y1="14.48" y2="20"/><line x1="8.12" x2="12" y1="8.12" y2="12"/></svg>,
+            Shield: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         };
 
         // --- UTILS ---
@@ -163,8 +165,9 @@
 
             const handleSave = () => {
                 onUpdateNotice({
-                    logistics: userRole === 'logistics' ? tempLogistics : notices.logistics,
-                    admin: userRole === 'admin' ? tempAdmin : notices.admin
+                    // Master pode editar ambos se quiser, mas aqui a lógica básica segue o role
+                    logistics: (userRole === 'logistics' || userRole === 'master') ? tempLogistics : notices.logistics,
+                    admin: (userRole === 'admin' || userRole === 'master') ? tempAdmin : notices.admin
                 });
                 setIsEditing(false);
             };
@@ -172,15 +175,15 @@
             if (isEditing) {
                 return (
                     <div className="bg-yellow-50 border-b border-yellow-200 p-4 animate-in fade-in">
-                        <h4 className="text-sm font-bold text-yellow-800 mb-2 flex items-center gap-2"><Icons.Edit/> Editar Aviso ({userRole === 'logistics' ? 'Logística' : 'Adm'})</h4>
+                        <h4 className="text-sm font-bold text-yellow-800 mb-2 flex items-center gap-2"><Icons.Edit/> Editar Aviso</h4>
                         <div className="flex flex-col gap-3">
-                            {userRole === 'logistics' && (
+                            {(userRole === 'logistics' || userRole === 'master') && (
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 block mb-1">Aviso Logística</label>
                                     <input className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-yellow-400 outline-none" value={tempLogistics} onChange={e => setTempLogistics(e.target.value)} placeholder="Ex: Não haverá entrega sexta..." />
                                 </div>
                             )}
-                            {userRole === 'admin' && (
+                            {(userRole === 'admin' || userRole === 'master') && (
                                 <div>
                                     <label className="text-xs font-bold text-slate-500 block mb-1">Aviso Administração</label>
                                     <input className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-yellow-400 outline-none" value={tempAdmin} onChange={e => setTempAdmin(e.target.value)} placeholder="Ex: Toner em falta..." />
@@ -198,7 +201,7 @@
             const hasLogistics = !!notices.logistics;
             const hasAdmin = !!notices.admin;
 
-            if (!hasLogistics && !hasAdmin && userRole !== 'logistics' && userRole !== 'admin') return null;
+            if (!hasLogistics && !hasAdmin && userRole !== 'logistics' && userRole !== 'admin' && userRole !== 'master') return null;
 
             return (
                 <div className="bg-gradient-to-r from-orange-50 via-yellow-50 to-orange-50 border-b border-orange-200 relative shadow-sm">
@@ -221,14 +224,14 @@
                                 </div>
                             )}
 
-                            {(!hasLogistics && !hasAdmin) && (userRole === 'logistics' || userRole === 'admin') && (
+                            {(!hasLogistics && !hasAdmin) && (userRole !== 'lab_tech') && (
                                 <span className="text-xs text-slate-400 italic flex items-center gap-1">
                                     <span className="w-2 h-2 rounded-full bg-slate-300"></span> Sem avisos ativos.
                                 </span>
                             )}
                         </div>
 
-                        {(userRole === 'logistics' || userRole === 'admin') && (
+                        {userRole !== 'lab_tech' && (
                             <button onClick={() => setIsEditing(true)} className="text-slate-400 hover:text-blue-600 p-1.5 bg-white/50 hover:bg-white rounded-full transition" title="Editar Aviso">
                                 <Icons.Edit />
                             </button>
@@ -238,17 +241,23 @@
             );
         };
 
-        const RequestCard = ({ req, role, onDelete, onUpdateStatus, onOutOfStock, onSaveStockInfo, onApprovePartial }) => {
+        const RequestCard = ({ req, role, onDelete, onUpdateStatus, onOutOfStock, onSaveStockInfo, onApprovePartial, onUpdateReq }) => {
             const [itemCode, setItemCode] = React.useState(req.itemCode || '');
             const [storageLocation, setStorageLocation] = React.useState(req.storageLocation || '');
             const [hasChanges, setHasChanges] = React.useState(false);
             
-            // Estado para entrega parcial
             const [showPartialInput, setShowPartialInput] = React.useState(false);
             const [partialQty, setPartialQty] = React.useState(req.quantity);
 
+            // Estado de Edição do Master
+            const [isEditingReq, setIsEditingReq] = React.useState(false);
+            const [editItem, setEditItem] = React.useState(req.item);
+            const [editQty, setEditQty] = React.useState(req.quantity);
+            const [editUnit, setEditUnit] = React.useState(req.unit);
+            const [editCategory, setEditCategory] = React.useState(req.category);
+
             React.useEffect(() => {
-                if (!req.itemCode && !req.storageLocation && (role === 'logistics' || role === 'admin')) {
+                if (!req.itemCode && !req.storageLocation && (role === 'logistics' || role === 'admin' || role === 'master')) {
                     try {
                         const catalog = JSON.parse(localStorage.getItem('labflow_catalog') || '{}');
                         const savedItem = catalog[req.item.trim().toLowerCase()];
@@ -276,103 +285,160 @@
                 setShowPartialInput(false);
             };
 
+            // Função para salvar edição do Master
+            const handleSaveEditReq = () => {
+                onUpdateReq(req.id, {
+                    item: editItem,
+                    quantity: editQty,
+                    unit: editUnit,
+                    category: editCategory
+                });
+                setIsEditingReq(false);
+            };
+
             const isAdmCategory = CAT_GROUPS.admin.includes(req.category);
             const badgeColor = isAdmCategory ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200';
 
             return (
                 <div className={`bg-white rounded-lg shadow-sm border p-4 transition-all ${req.status === 'pending' ? 'border-l-4 border-l-yellow-400' : req.status === 'approved' ? 'border-l-4 border-l-green-500 bg-green-50/10' : 'border-l-4 border-l-red-500 opacity-75'}`}>
-                    <div className="flex flex-col md:flex-row justify-between gap-4">
-                        <div className="flex-1">
-                            <div className="flex items-center flex-wrap gap-2 mb-2">
-                                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${badgeColor}`}>
-                                    {CAT_LABELS[req.category] || req.category}
-                                </span>
-                                {req.isUrgent && <span className="flex items-center gap-1 text-[10px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded border border-red-200"><Icons.AlertCircle /> URGENTE</span>}
-                                <span className="text-xs text-slate-400 flex items-center gap-1 ml-auto md:ml-0"><Icons.Clock /> {formatDate(req.createdAt)}</span>
-                            </div>
-                            
-                            <div>
-                                <h3 className="text-lg font-bold text-slate-800 leading-tight">{req.item}</h3>
-                                <div className="text-sm font-medium text-slate-500 mt-1">Qtd: {req.quantity} {req.unit}</div>
-                            </div>
-
-                            {(role === 'logistics' || role === 'admin') && (
-                                <div className="mt-3 flex gap-2 items-end">
-                                    <div className="flex-1 max-w-[120px]">
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Cód.</label>
-                                        <input type="text" value={itemCode} onChange={(e) => { setItemCode(e.target.value); setHasChanges(true); }} placeholder="0000" className="w-full text-xs p-1.5 border border-slate-300 rounded outline-none"/>
-                                    </div>
-                                    <div className="flex-1 max-w-[120px]">
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Local</label>
-                                        <input type="text" value={storageLocation} onChange={(e) => { setStorageLocation(e.target.value); setHasChanges(true); }} placeholder="A1-P2" className="w-full text-xs p-1.5 border border-slate-300 rounded outline-none"/>
-                                    </div>
-                                    {hasChanges && <button onClick={handleSaveInfo} title="Salvar" className="mb-[1px] p-1.5 bg-blue-100 text-blue-600 rounded"><Icons.Save /></button>}
+                    
+                    {/* MODO DE EDIÇÃO (SUPER ADMIN) */}
+                    {isEditingReq ? (
+                        <div className="flex flex-col gap-3 animate-in fade-in bg-blue-50/50 p-2 rounded">
+                            <h4 className="text-xs font-bold text-blue-800 uppercase">Editando Pedido</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                <input className="p-2 border rounded text-sm" value={editItem} onChange={e => setEditItem(e.target.value)} placeholder="Item" />
+                                <select className="p-2 border rounded text-sm" value={editCategory} onChange={e => setEditCategory(e.target.value)}>
+                                    <optgroup label="Logística">
+                                        <option value="reagente">🧪 Reagente</option>
+                                        <option value="materiais">📦 Materiais</option>
+                                        <option value="consumivel_log">🧴 Consumível (Lab)</option>
+                                    </optgroup>
+                                    <optgroup label="Administração">
+                                        <option value="epi">🥽 EPI</option>
+                                        <option value="escritorio">📎 Escritório</option>
+                                        <option value="consumivel_adm">🗑️ Consumível (Adm)</option>
+                                    </optgroup>
+                                </select>
+                                <div className="flex gap-1">
+                                    <input className="p-2 border rounded text-sm w-full" type="number" value={editQty} onChange={e => setEditQty(e.target.value)} placeholder="Qtd" />
+                                    <select className="p-2 border rounded text-sm w-20" value={editUnit} onChange={e => setEditUnit(e.target.value)}>
+                                        <option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="l">l</option><option value="pct">pct</option>
+                                    </select>
                                 </div>
-                            )}
-
-                            {role === 'lab_tech' && (req.itemCode || req.storageLocation) && (
-                                <div className="mt-2 text-xs text-slate-500 flex gap-3">
-                                    {req.itemCode && <span><strong>Cód:</strong> {req.itemCode}</span>}
-                                    {req.storageLocation && <span><strong>Local:</strong> {req.storageLocation}</span>}
-                                </div>
-                            )}
-
-                            <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap items-center gap-3 text-sm text-slate-600">
-                                <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded"><Icons.User /> <span className="font-semibold">{req.requesterName}</span><span className="text-slate-300">|</span><span className="text-blue-600 font-bold text-xs">{req.requesterSector || 'N/A'}</span></div>
-                                {req.notes && <span className="italic text-slate-400 text-xs">Obs: {req.notes}</span>}
                             </div>
-                            {req.status === 'out_of_stock' && req.logisticsMessage && (
-                                <div className="mt-2 bg-red-50 border border-red-100 p-2 rounded text-red-700 text-sm"><strong>Motivo:</strong> {req.logisticsMessage}</div>
-                            )}
-                            {req.status === 'approved' && req.logisticsMessage && (
-                                <div className="mt-2 bg-yellow-50 border border-yellow-100 p-2 rounded text-yellow-800 text-sm"><strong>Nota:</strong> {req.logisticsMessage}</div>
-                            )}
+                            <div className="flex justify-end gap-2">
+                                <button onClick={() => setIsEditingReq(false)} className="px-3 py-1 bg-white border rounded text-xs">Cancelar</button>
+                                <button onClick={handleSaveEditReq} className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold">Salvar Alterações</button>
+                            </div>
                         </div>
+                    ) : (
+                        // MODO NORMAL DE VISUALIZAÇÃO
+                        <div className="flex flex-col md:flex-row justify-between gap-4">
+                            <div className="flex-1">
+                                <div className="flex items-center flex-wrap gap-2 mb-2">
+                                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${badgeColor}`}>
+                                        {CAT_LABELS[req.category] || req.category}
+                                    </span>
+                                    {req.isUrgent && <span className="flex items-center gap-1 text-[10px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded border border-red-200"><Icons.AlertCircle /> URGENTE</span>}
+                                    <span className="text-xs text-slate-400 flex items-center gap-1 ml-auto md:ml-0"><Icons.Clock /> {formatDate(req.createdAt)}</span>
+                                </div>
+                                
+                                <div className="flex items-center gap-2">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-800 leading-tight">{req.item}</h3>
+                                        <div className="text-sm font-medium text-slate-500 mt-1">Qtd: {req.quantity} {req.unit}</div>
+                                    </div>
+                                    {/* Botão de Editar para Master */}
+                                    {role === 'master' && (
+                                        <button onClick={() => setIsEditingReq(true)} className="text-slate-300 hover:text-blue-500 p-1">
+                                            <Icons.Edit />
+                                        </button>
+                                    )}
+                                </div>
 
-                        {(role === 'logistics' || role === 'admin') && (
-                            <div className="flex flex-row md:flex-col gap-2 justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-4 min-w-[140px]">
-                                {req.status === 'pending' ? (
-                                    <>
-                                        {!showPartialInput ? (
-                                            <>
-                                                <button onClick={() => handleStatusAction('approved')} className="bg-green-100 text-green-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-green-200 flex items-center justify-center gap-2" title="Entregar Total"><Icons.CheckCircle2 /> TOTAL</button>
-                                                <button onClick={() => setShowPartialInput(true)} className="bg-orange-100 text-orange-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-orange-200 flex items-center justify-center gap-2" title="Entregar Parcial"><Icons.Scissors /> PARCIAL</button>
-                                                <button onClick={() => onOutOfStock(req.id)} className="bg-red-100 text-red-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-red-200 flex items-center justify-center gap-2"><Icons.PackageX /> EM FALTA</button>
-                                            </>
-                                        ) : (
-                                            <div className="flex flex-col gap-2 animate-in fade-in">
-                                                <div className="text-xs font-bold text-slate-500 text-center">Qtd Real?</div>
-                                                <input 
-                                                    type="number" 
-                                                    value={partialQty} 
-                                                    onChange={(e) => setPartialQty(e.target.value)} 
-                                                    className="w-full p-1 border rounded text-center text-sm font-bold"
-                                                />
-                                                <div className="flex gap-1">
-                                                    <button onClick={() => setShowPartialInput(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded py-1 text-xs">Cancelar</button>
-                                                    <button onClick={handlePartialConfirm} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded py-1 text-xs font-bold">OK</button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </>
-                                ) : (
-                                    <div className="text-center">
-                                        <span className={`text-sm font-bold ${req.status === 'approved' ? 'text-green-600' : 'text-red-600'}`}>{req.status === 'approved' ? 'SEPARADO' : 'INDISPONÍVEL'}</span>
-                                        <button onClick={() => handleStatusAction('pending')} className="block mx-auto text-xs text-slate-400 underline mt-1">Alterar</button>
+                                {(role === 'logistics' || role === 'admin' || role === 'master') && (
+                                    <div className="mt-3 flex gap-2 items-end">
+                                        <div className="flex-1 max-w-[120px]">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase">Cód.</label>
+                                            <input type="text" value={itemCode} onChange={(e) => { setItemCode(e.target.value); setHasChanges(true); }} placeholder="0000" className="w-full text-xs p-1.5 border border-slate-300 rounded outline-none"/>
+                                        </div>
+                                        <div className="flex-1 max-w-[120px]">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase">Local</label>
+                                            <input type="text" value={storageLocation} onChange={(e) => { setStorageLocation(e.target.value); setHasChanges(true); }} placeholder="A1-P2" className="w-full text-xs p-1.5 border border-slate-300 rounded outline-none"/>
+                                        </div>
+                                        {hasChanges && <button onClick={handleSaveInfo} title="Salvar" className="mb-[1px] p-1.5 bg-blue-100 text-blue-600 rounded"><Icons.Save /></button>}
                                     </div>
                                 )}
-                            </div>
-                        )}
 
-                        {role === 'lab_tech' && (
-                            <div className="flex items-center justify-end md:justify-center min-w-[100px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pl-4">
-                                {req.status === 'pending' && <span className="text-yellow-600 text-xs font-bold bg-yellow-50 px-2 py-1 rounded">PENDENTE</span>}
-                                {req.status === 'approved' && <div className="text-center"><span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-1 rounded">DISPONÍVEL</span><div className="text-[10px] text-slate-400 mt-1">Retirar na 2ª</div></div>}
-                                {req.status === 'out_of_stock' && <span className="text-red-600 text-xs font-bold bg-red-50 px-2 py-1 rounded">EM FALTA</span>}
-                                {req.status === 'pending' && <button onClick={() => onDelete(req.id)} className="ml-2 text-slate-300 hover:text-red-500"><Icons.Trash2 /></button>}
+                                {role === 'lab_tech' && (req.itemCode || req.storageLocation) && (
+                                    <div className="mt-2 text-xs text-slate-500 flex gap-3">
+                                        {req.itemCode && <span><strong>Cód:</strong> {req.itemCode}</span>}
+                                        {req.storageLocation && <span><strong>Local:</strong> {req.storageLocation}</span>}
+                                    </div>
+                                )}
+
+                                <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                                    <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded"><Icons.User /> <span className="font-semibold">{req.requesterName}</span><span className="text-slate-300">|</span><span className="text-blue-600 font-bold text-xs">{req.requesterSector || 'N/A'}</span></div>
+                                    {req.notes && <span className="italic text-slate-400 text-xs">Obs: {req.notes}</span>}
+                                </div>
+                                {req.status === 'out_of_stock' && req.logisticsMessage && (
+                                    <div className="mt-2 bg-red-50 border border-red-100 p-2 rounded text-red-700 text-sm"><strong>Motivo:</strong> {req.logisticsMessage}</div>
+                                )}
+                                {req.status === 'approved' && req.logisticsMessage && (
+                                    <div className="mt-2 bg-yellow-50 border border-yellow-100 p-2 rounded text-yellow-800 text-sm"><strong>Nota:</strong> {req.logisticsMessage}</div>
+                                )}
                             </div>
-                        )}
-                    </div>
+
+                            {(role === 'logistics' || role === 'admin' || role === 'master') && (
+                                <div className="flex flex-row md:flex-col gap-2 justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-4 min-w-[140px]">
+                                    {req.status === 'pending' ? (
+                                        <>
+                                            {!showPartialInput ? (
+                                                <>
+                                                    <button onClick={() => handleStatusAction('approved')} className="bg-green-100 text-green-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-green-200 flex items-center justify-center gap-2" title="Entregar Total"><Icons.CheckCircle2 /> TOTAL</button>
+                                                    <button onClick={() => setShowPartialInput(true)} className="bg-orange-100 text-orange-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-orange-200 flex items-center justify-center gap-2" title="Entregar Parcial"><Icons.Scissors /> PARCIAL</button>
+                                                    <button onClick={() => onOutOfStock(req.id)} className="bg-red-100 text-red-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-red-200 flex items-center justify-center gap-2"><Icons.PackageX /> EM FALTA</button>
+                                                </>
+                                            ) : (
+                                                <div className="flex flex-col gap-2 animate-in fade-in">
+                                                    <div className="text-xs font-bold text-slate-500 text-center">Qtd Real?</div>
+                                                    <input 
+                                                        type="number" 
+                                                        value={partialQty} 
+                                                        onChange={(e) => setPartialQty(e.target.value)} 
+                                                        className="w-full p-1 border rounded text-center text-sm font-bold"
+                                                    />
+                                                    <div className="flex gap-1">
+                                                        <button onClick={() => setShowPartialInput(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded py-1 text-xs">Cancelar</button>
+                                                        <button onClick={handlePartialConfirm} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded py-1 text-xs font-bold">OK</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="text-center">
+                                            <span className={`text-sm font-bold ${req.status === 'approved' ? 'text-green-600' : 'text-red-600'}`}>{req.status === 'approved' ? 'SEPARADO' : 'INDISPONÍVEL'}</span>
+                                            <button onClick={() => handleStatusAction('pending')} className="block mx-auto text-xs text-slate-400 underline mt-1">Alterar</button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {(role === 'lab_tech' || role === 'master') && req.status === 'pending' && role !== 'logistics' && role !== 'admin' && (
+                                <div className="flex items-center justify-end md:justify-center min-w-[50px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pl-4">
+                                    <button onClick={() => onDelete(req.id)} className="ml-2 text-slate-300 hover:text-red-500"><Icons.Trash2 /></button>
+                                </div>
+                            )}
+                            
+                            {role === 'lab_tech' && req.status !== 'pending' && (
+                                <div className="flex items-center justify-end md:justify-center min-w-[100px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pl-4">
+                                    {req.status === 'approved' && <div className="text-center"><span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-1 rounded">DISPONÍVEL</span><div className="text-[10px] text-slate-400 mt-1">Retirar na 2ª</div></div>}
+                                    {req.status === 'out_of_stock' && <span className="text-red-600 text-xs font-bold bg-red-50 px-2 py-1 rounded">EM FALTA</span>}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -436,6 +502,9 @@
                 } else if (role === 'admin') {
                     if (password !== SENHA_ADMIN) return setError("Senha incorreta para Administração.");
                     onLogin({ name, role, sector: 'ADMINISTRAÇÃO' });
+                } else if (role === 'master') {
+                    if (password !== SENHA_MASTER) return setError("Senha incorreta para Gestor do Sistema.");
+                    onLogin({ name, role, sector: 'GESTOR DO SISTEMA' });
                 } else {
                     if (!sector) return setError("Selecione seu setor.");
                     onLogin({ name, role, sector });
@@ -459,7 +528,7 @@
 
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-1">Função</label>
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-2 gap-2">
                                     <button onClick={() => setRole('lab_tech')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition ${role === 'lab_tech' ? 'bg-blue-50 border-blue-500 text-blue-700 ring-1 ring-blue-500' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
                                         <Icons.Beaker /> <span className="text-xs font-medium">Laboratório</span>
                                     </button>
@@ -468,6 +537,9 @@
                                     </button>
                                     <button onClick={() => setRole('admin')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition ${role === 'admin' ? 'bg-purple-50 border-purple-500 text-purple-700 ring-1 ring-purple-500' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
                                         <Icons.Briefcase /> <span className="text-xs font-medium">Admin</span>
+                                    </button>
+                                    <button onClick={() => setRole('master')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition ${role === 'master' ? 'bg-red-50 border-red-500 text-red-700 ring-1 ring-red-500' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                        <Icons.Shield /> <span className="text-xs font-medium">Gestor do Sistema</span>
                                     </button>
                                 </div>
                             </div>
@@ -632,6 +704,13 @@
                 } catch (e) { console.error(e); }
             };
 
+            const handleUpdateReq = async (id, newData) => {
+                try {
+                    const ref = doc(db, 'solicitacoes_lab_2026', id);
+                    await updateDoc(ref, newData);
+                } catch (e) { console.error(e); }
+            };
+
             const handleApprovePartial = async (id, newQty, originalQty) => {
                 try {
                     const ref = doc(db, 'solicitacoes_lab_2026', id);
@@ -668,6 +747,7 @@
                     // Adm baixa só suas categorias
                     dataToExport = dataToExport.filter(r => CAT_GROUPS.admin.includes(r.category));
                 }
+                // Master baixa TUDO
                 
                 if (dataToExport.length === 0) return alert("Nenhum dado recente encontrado para seu perfil/setor.");
 
@@ -681,7 +761,7 @@
                 doc.setFontSize(10);
                 doc.setTextColor(100);
                 doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 28);
-                doc.text(`Perfil: ${appUser.role === 'logistics' ? 'Logística' : appUser.role === 'admin' ? 'Administração' : appUser.sector}`, 14, 33);
+                doc.text(`Perfil: ${appUser.role === 'logistics' ? 'Logística' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'master' ? 'Gestor do Sistema' : appUser.sector}`, 14, 33);
 
                 const tableColumn = ["Data", "Cód", "Item", "Local", "Qtd", "Categoria", "Solicitante", "Status"];
                 const tableRows = [];
@@ -766,6 +846,7 @@
                     } else if (appUser.role === 'admin') {
                         matchRole = CAT_GROUPS.admin.includes(req.category);
                     }
+                    // Master vê tudo
                     
                     return matchText && matchRole;
                 });
@@ -815,7 +896,7 @@
                                 <div className="hidden sm:block h-8 w-px bg-slate-200"></div>
                                 <div>
                                     <h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1>
-                                    <p className="text-xs text-slate-500 uppercase">{appUser.role === 'admin' ? 'ADMINISTRAÇÃO' : appUser.role === 'logistics' ? 'LOGÍSTICA' : appUser.sector}</p>
+                                    <p className="text-xs text-slate-500 uppercase">{appUser.role === 'admin' ? 'ADMINISTRAÇÃO' : appUser.role === 'logistics' ? 'LOGÍSTICA' : appUser.role === 'master' ? 'GESTOR DO SISTEMA' : appUser.sector}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -923,6 +1004,7 @@
                                             onOutOfStock={handleOutOfStockClick}
                                             onSaveStockInfo={handleSaveStockInfo}
                                             onApprovePartial={handleApprovePartial}
+                                            onUpdateReq={handleUpdateReq}
                                         />
                                     ))}
                                 </div>
