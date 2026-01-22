@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LabFlow 2026 - SENAI CIMATEC</title>
+    
+    <!-- React e ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- BIBLIOTECAS PARA PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
+        
+        /* Fontes personalizadas para o Logo */
+        .font-logo { font-family: 'Arial Black', 'Arial', sans-serif; }
+
+        /* Animação de Piscar para os Avisos */
+        @keyframes pulse-alert {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .animate-blink { animation: pulse-alert 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // --- CONFIGURAÇÃO FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAhJylWo5-RAyxsCFV3w9ounadvauJ_v_8",
+            authDomain: "labflow-2026.firebaseapp.com",
+            projectId: "labflow-2026",
+            storageBucket: "labflow-2026.firebasestorage.app",
+            messagingSenderId: "564680738234",
+            appId: "1:564680738234:web:e6e1192ff9112305870983",
+            measurementId: "G-0CBN5BRWY3"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- CONSTANTES ---
+        const SETORES = ['QGI', 'ESP', 'FQA', 'FRASCARIA', 'CRO', 'MIC', 'OUTROS']; 
+        const SENHA_LOGISTICA = "cimatec2026";
+        const SENHA_ADMIN = "adm2026";
+
+        // DEFINIÇÃO DE CATEGORIAS E RESPONSABILIDADES
+        const CAT_GROUPS = {
+            logistics: ['reagente', 'materiais', 'consumivel_log', 'consumivel'], // 'consumivel' antigo mantido aqui
+            admin: ['epi', 'escritorio', 'consumivel_adm']
+        };
+
+        const CAT_LABELS = {
+            'reagente': '🧪 Reagente',
+            'materiais': '📦 Materiais',
+            'consumivel_log': '🧴 Consumível (Lab)',
+            'consumivel': '🧻 Consumível (Antigo)',
+            'epi': '🥽 EPI',
+            'escritorio': '📎 Escritório',
+            'consumivel_adm': '🗑️ Consumível (Adm)'
+        };
+
+        // --- COMPONENTE LOGO INSTITUCIONAL ---
+        const InstitutionalLogo = () => (
+            <div className="flex flex-col select-none cursor-default items-start">
+                <div className="relative font-logo italic text-xs tracking-wider leading-none ml-0.5 flex" style={{ transform: 'skewX(-10deg)' }}>
+                    <span className="text-[#013C97]">SENAI</span>
+                </div>
+                <div className="relative leading-none font-logo italic text-3xl tracking-tighter flex" style={{ transform: 'skewX(-10deg)' }}>
+                    <span className="text-[#013C97]">CIMATEC</span>
+                </div>
+            </div>
+        );
+
+        // --- ÍCONES ---
+        const Icons = {
+            Beaker: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 3h15"/><path d="M6 3v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V3"/><path d="M6 14h12"/></svg>,
+            Truck: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 18h5"/><path d="M19 18h1"/><path d="M14 18h1"/><path d="M10 18h1"/><path d="M19 18a2 2 0 0 0 2-2v-3.46a2 2 0 0 0-.58-1.42l-2.83-2.83a2 2 0 0 0-1.42-.58H15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>,
+            Briefcase: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
+            Building2: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>,
+            ClipboardList: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>,
+            CheckCircle2: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>,
+            PackageX: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="m7.5 4.27 9 5.15"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/><path d="m17 13 5 5m-5 0 5-5"/></svg>,
+            Clock: () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+            User: () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+            AlertCircle: () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>,
+            LogOut: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
+            Search: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+            Trash2: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>,
+            Save: () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>,
+            FileText: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>,
+            X: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            Lock: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+            History: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>,
+            RefreshCw: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>,
+            Edit: () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+            Scissors: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" x2="8.12" y1="4" y2="15.88"/><line x1="14.47" x2="20" y1="14.48" y2="20"/><line x1="8.12" x2="12" y1="8.12" y2="12"/></svg>
+        };
+
+        // --- UTILS ---
+        const getNextMonday = () => {
+            const d = new Date();
+            d.setDate(d.getDate() + ((1 + 7 - d.getDay()) % 7));
+            return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        };
+
+        const getNextOfficeDay = () => {
+            const d = new Date();
+            const day = d.getDay();
+            let add = 0;
+            if (day < 3 && day >= 1) { add = 3 - day; } else { add = (1 + 7 - day) % 7; if(add === 0) add = 7; }
+            d.setDate(d.getDate() + add);
+            return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        };
+
+        const formatDate = (isoString) => {
+            if (!isoString) return '-';
+            const date = new Date(isoString);
+            return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        };
+
+        const isRecent = (dateString, days = 7) => {
+            if (!dateString) return false;
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffTime = Math.abs(now - date);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            return diffDays <= days;
+        };
+
+        // --- COMPONENTES ---
+
+        // Banner de Avisos
+        const NoticeBanner = ({ notices, userRole, onUpdateNotice }) => {
+            const [isEditing, setIsEditing] = React.useState(false);
+            const [tempLogistics, setTempLogistics] = React.useState(notices.logistics || '');
+            const [tempAdmin, setTempAdmin] = React.useState(notices.admin || '');
+
+            React.useEffect(() => {
+                setTempLogistics(notices.logistics || '');
+                setTempAdmin(notices.admin || '');
+            }, [notices]);
+
+            const handleSave = () => {
+                onUpdateNotice({
+                    logistics: userRole === 'logistics' ? tempLogistics : notices.logistics,
+                    admin: userRole === 'admin' ? tempAdmin : notices.admin
+                });
+                setIsEditing(false);
+            };
+
+            if (isEditing) {
+                return (
+                    <div className="bg-yellow-50 border-b border-yellow-200 p-4 animate-in fade-in">
+                        <h4 className="text-sm font-bold text-yellow-800 mb-2 flex items-center gap-2"><Icons.Edit/> Editar Aviso ({userRole === 'logistics' ? 'Logística' : 'Adm'})</h4>
+                        <div className="flex flex-col gap-3">
+                            {userRole === 'logistics' && (
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 block mb-1">Aviso Logística</label>
+                                    <input className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-yellow-400 outline-none" value={tempLogistics} onChange={e => setTempLogistics(e.target.value)} placeholder="Ex: Não haverá entrega sexta..." />
+                                </div>
+                            )}
+                            {userRole === 'admin' && (
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 block mb-1">Aviso Administração</label>
+                                    <input className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-yellow-400 outline-none" value={tempAdmin} onChange={e => setTempAdmin(e.target.value)} placeholder="Ex: Toner em falta..." />
+                                </div>
+                            )}
+                            <div className="flex gap-2 justify-end mt-2">
+                                <button onClick={() => setIsEditing(false)} className="px-3 py-1 text-xs text-slate-500 hover:bg-slate-100 rounded">Cancelar</button>
+                                <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded text-xs font-bold transition shadow-sm">Salvar</button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            const hasLogistics = !!notices.logistics;
+            const hasAdmin = !!notices.admin;
+
+            if (!hasLogistics && !hasAdmin && userRole !== 'logistics' && userRole !== 'admin') return null;
+
+            return (
+                <div className="bg-gradient-to-r from-orange-50 via-yellow-50 to-orange-50 border-b border-orange-200 relative shadow-sm">
+                    <div className="max-w-5xl mx-auto px-4 py-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left min-h-[40px]">
+                        <div className="flex-1 flex flex-col sm:flex-row gap-x-6 gap-y-2 justify-center sm:justify-start items-center w-full">
+                            
+                            {hasLogistics && (
+                                <div className="flex items-center gap-2 text-orange-800 animate-blink font-semibold text-sm">
+                                    <span className="bg-orange-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Logística</span>
+                                    <span>{notices.logistics}</span>
+                                </div>
+                            )}
+
+                            {hasLogistics && hasAdmin && <div className="hidden sm:block w-px h-4 bg-orange-300"></div>}
+
+                            {hasAdmin && (
+                                <div className="flex items-center gap-2 text-indigo-900 animate-blink font-semibold text-sm">
+                                    <span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Adm</span>
+                                    <span>{notices.admin}</span>
+                                </div>
+                            )}
+
+                            {(!hasLogistics && !hasAdmin) && (userRole === 'logistics' || userRole === 'admin') && (
+                                <span className="text-xs text-slate-400 italic flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-slate-300"></span> Sem avisos ativos.
+                                </span>
+                            )}
+                        </div>
+
+                        {(userRole === 'logistics' || userRole === 'admin') && (
+                            <button onClick={() => setIsEditing(true)} className="text-slate-400 hover:text-blue-600 p-1.5 bg-white/50 hover:bg-white rounded-full transition" title="Editar Aviso">
+                                <Icons.Edit />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const RequestCard = ({ req, role, onDelete, onUpdateStatus, onOutOfStock, onSaveStockInfo, onApprovePartial }) => {
+            const [itemCode, setItemCode] = React.useState(req.itemCode || '');
+            const [storageLocation, setStorageLocation] = React.useState(req.storageLocation || '');
+            const [hasChanges, setHasChanges] = React.useState(false);
+            
+            // Estado para entrega parcial
+            const [showPartialInput, setShowPartialInput] = React.useState(false);
+            const [partialQty, setPartialQty] = React.useState(req.quantity);
+
+            React.useEffect(() => {
+                if (!req.itemCode && !req.storageLocation && (role === 'logistics' || role === 'admin')) {
+                    try {
+                        const catalog = JSON.parse(localStorage.getItem('labflow_catalog') || '{}');
+                        const savedItem = catalog[req.item.trim().toLowerCase()];
+                        if (savedItem) {
+                            if (savedItem.code) { setItemCode(savedItem.code); setHasChanges(true); }
+                            if (savedItem.loc) { setStorageLocation(savedItem.loc); setHasChanges(true); }
+                        }
+                    } catch (e) { console.error("Erro catálogo", e); }
+                }
+            }, [req.item, role]);
+
+            const handleSaveInfo = () => {
+                onSaveStockInfo(req.id, itemCode, storageLocation, req.item);
+                setHasChanges(false);
+            };
+
+            const handleStatusAction = (status) => {
+                if (status === 'approved') onSaveStockInfo(req.id, itemCode, storageLocation, req.item);
+                onUpdateStatus(req.id, status);
+            };
+
+            const handlePartialConfirm = () => {
+                onSaveStockInfo(req.id, itemCode, storageLocation, req.item);
+                onApprovePartial(req.id, partialQty, req.quantity);
+                setShowPartialInput(false);
+            };
+
+            const isAdmCategory = CAT_GROUPS.admin.includes(req.category);
+            const badgeColor = isAdmCategory ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200';
+
+            return (
+                <div className={`bg-white rounded-lg shadow-sm border p-4 transition-all ${req.status === 'pending' ? 'border-l-4 border-l-yellow-400' : req.status === 'approved' ? 'border-l-4 border-l-green-500 bg-green-50/10' : 'border-l-4 border-l-red-500 opacity-75'}`}>
+                    <div className="flex flex-col md:flex-row justify-between gap-4">
+                        <div className="flex-1">
+                            <div className="flex items-center flex-wrap gap-2 mb-2">
+                                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${badgeColor}`}>
+                                    {CAT_LABELS[req.category] || req.category}
+                                </span>
+                                {req.isUrgent && <span className="flex items-center gap-1 text-[10px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded border border-red-200"><Icons.AlertCircle /> URGENTE</span>}
+                                <span className="text-xs text-slate-400 flex items-center gap-1 ml-auto md:ml-0"><Icons.Clock /> {formatDate(req.createdAt)}</span>
+                            </div>
+                            
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 leading-tight">{req.item}</h3>
+                                <div className="text-sm font-medium text-slate-500 mt-1">Qtd: {req.quantity} {req.unit}</div>
+                            </div>
+
+                            {(role === 'logistics' || role === 'admin') && (
+                                <div className="mt-3 flex gap-2 items-end">
+                                    <div className="flex-1 max-w-[120px]">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Cód.</label>
+                                        <input type="text" value={itemCode} onChange={(e) => { setItemCode(e.target.value); setHasChanges(true); }} placeholder="0000" className="w-full text-xs p-1.5 border border-slate-300 rounded outline-none"/>
+                                    </div>
+                                    <div className="flex-1 max-w-[120px]">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase">Local</label>
+                                        <input type="text" value={storageLocation} onChange={(e) => { setStorageLocation(e.target.value); setHasChanges(true); }} placeholder="A1-P2" className="w-full text-xs p-1.5 border border-slate-300 rounded outline-none"/>
+                                    </div>
+                                    {hasChanges && <button onClick={handleSaveInfo} title="Salvar" className="mb-[1px] p-1.5 bg-blue-100 text-blue-600 rounded"><Icons.Save /></button>}
+                                </div>
+                            )}
+
+                            {role === 'lab_tech' && (req.itemCode || req.storageLocation) && (
+                                <div className="mt-2 text-xs text-slate-500 flex gap-3">
+                                    {req.itemCode && <span><strong>Cód:</strong> {req.itemCode}</span>}
+                                    {req.storageLocation && <span><strong>Local:</strong> {req.storageLocation}</span>}
+                                </div>
+                            )}
+
+                            <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                                <div className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded"><Icons.User /> <span className="font-semibold">{req.requesterName}</span><span className="text-slate-300">|</span><span className="text-blue-600 font-bold text-xs">{req.requesterSector || 'N/A'}</span></div>
+                                {req.notes && <span className="italic text-slate-400 text-xs">Obs: {req.notes}</span>}
+                            </div>
+                            {req.status === 'out_of_stock' && req.logisticsMessage && (
+                                <div className="mt-2 bg-red-50 border border-red-100 p-2 rounded text-red-700 text-sm"><strong>Motivo:</strong> {req.logisticsMessage}</div>
+                            )}
+                            {req.status === 'approved' && req.logisticsMessage && (
+                                <div className="mt-2 bg-yellow-50 border border-yellow-100 p-2 rounded text-yellow-800 text-sm"><strong>Nota:</strong> {req.logisticsMessage}</div>
+                            )}
+                        </div>
+
+                        {(role === 'logistics' || role === 'admin') && (
+                            <div className="flex flex-row md:flex-col gap-2 justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-4 min-w-[140px]">
+                                {req.status === 'pending' ? (
+                                    <>
+                                        {!showPartialInput ? (
+                                            <>
+                                                <button onClick={() => handleStatusAction('approved')} className="bg-green-100 text-green-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-green-200 flex items-center justify-center gap-2" title="Entregar Total"><Icons.CheckCircle2 /> TOTAL</button>
+                                                <button onClick={() => setShowPartialInput(true)} className="bg-orange-100 text-orange-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-orange-200 flex items-center justify-center gap-2" title="Entregar Parcial"><Icons.Scissors /> PARCIAL</button>
+                                                <button onClick={() => onOutOfStock(req.id)} className="bg-red-100 text-red-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-red-200 flex items-center justify-center gap-2"><Icons.PackageX /> EM FALTA</button>
+                                            </>
+                                        ) : (
+                                            <div className="flex flex-col gap-2 animate-in fade-in">
+                                                <div className="text-xs font-bold text-slate-500 text-center">Qtd Real?</div>
+                                                <input 
+                                                    type="number" 
+                                                    value={partialQty} 
+                                                    onChange={(e) => setPartialQty(e.target.value)} 
+                                                    className="w-full p-1 border rounded text-center text-sm font-bold"
+                                                />
+                                                <div className="flex gap-1">
+                                                    <button onClick={() => setShowPartialInput(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded py-1 text-xs">Cancelar</button>
+                                                    <button onClick={handlePartialConfirm} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded py-1 text-xs font-bold">OK</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="text-center">
+                                        <span className={`text-sm font-bold ${req.status === 'approved' ? 'text-green-600' : 'text-red-600'}`}>{req.status === 'approved' ? 'SEPARADO' : 'INDISPONÍVEL'}</span>
+                                        <button onClick={() => handleStatusAction('pending')} className="block mx-auto text-xs text-slate-400 underline mt-1">Alterar</button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {role === 'lab_tech' && (
+                            <div className="flex items-center justify-end md:justify-center min-w-[100px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pl-4">
+                                {req.status === 'pending' && <span className="text-yellow-600 text-xs font-bold bg-yellow-50 px-2 py-1 rounded">PENDENTE</span>}
+                                {req.status === 'approved' && <div className="text-center"><span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-1 rounded">DISPONÍVEL</span><div className="text-[10px] text-slate-400 mt-1">Retirar na 2ª</div></div>}
+                                {req.status === 'out_of_stock' && <span className="text-red-600 text-xs font-bold bg-red-50 px-2 py-1 rounded">EM FALTA</span>}
+                                {req.status === 'pending' && <button onClick={() => onDelete(req.id)} className="ml-2 text-slate-300 hover:text-red-500"><Icons.Trash2 /></button>}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const HistoryRow = ({ req, onMarkRestocked }) => (
+            <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col md:flex-row gap-4 items-center text-sm">
+                <div className="flex-1 w-full">
+                    <div className="flex justify-between mb-1">
+                        <span className="font-bold text-slate-700">{req.item}</span>
+                        <span className="text-slate-400 text-xs">{formatDate(req.createdAt)}</span>
+                    </div>
+                    <div className="flex gap-2 text-xs text-slate-500">
+                        <span>{req.quantity} {req.unit}</span>
+                        <span>• {req.requesterName} ({req.requesterSector})</span>
+                        {req.itemCode && <span>• Cód: {req.itemCode}</span>}
+                    </div>
+                    <div className="mt-1">
+                       <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border bg-slate-50 text-slate-500">
+                            {CAT_LABELS[req.category] || req.category}
+                       </span>
+                    </div>
+                    {req.logisticsMessage && <div className={`text-xs mt-1 ${req.status === 'approved' ? 'text-yellow-700 bg-yellow-50 p-1 rounded inline-block' : 'text-red-500'}`}>Obs: {req.logisticsMessage}</div>}
+                </div>
+                <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                        req.status === 'approved' ? 'bg-green-100 text-green-700' : 
+                        req.status === 'out_of_stock' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                        {req.status === 'approved' ? 'Entregue/Disp.' : req.status === 'out_of_stock' ? 'Em Falta' : req.status}
+                    </span>
+                    
+                    {req.status === 'out_of_stock' && !req.stockRestored && (
+                        <button 
+                            onClick={() => onMarkRestocked(req.id)}
+                            className="flex items-center gap-1 bg-blue-50 text-blue-600 border border-blue-200 px-2 py-1 rounded text-xs hover:bg-blue-100 transition"
+                        >
+                            <Icons.RefreshCw /> Reposto?
+                        </button>
+                    )}
+                    {req.status === 'out_of_stock' && req.stockRestored && (
+                        <span className="text-xs text-blue-600 font-bold border border-blue-100 bg-blue-50 px-2 py-1 rounded">Estoque OK</span>
+                    )}
+                </div>
+            </div>
+        );
+
+        const LoginScreen = ({ onLogin }) => {
+            const [name, setName] = React.useState('');
+            const [role, setRole] = React.useState('lab_tech');
+            const [sector, setSector] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            const [error, setError] = React.useState('');
+
+            const handleEnter = () => {
+                setError('');
+                if (!name.trim()) return setError("Digite seu nome.");
+                
+                if (role === 'logistics') {
+                    if (password !== SENHA_LOGISTICA) return setError("Senha incorreta para Logística.");
+                    onLogin({ name, role, sector: 'LOGÍSTICA' });
+                } else if (role === 'admin') {
+                    if (password !== SENHA_ADMIN) return setError("Senha incorreta para Administração.");
+                    onLogin({ name, role, sector: 'ADMINISTRAÇÃO' });
+                } else {
+                    if (!sector) return setError("Selecione seu setor.");
+                    onLogin({ name, role, sector });
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+                    <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-slate-100 fade-in">
+                        <div className="flex justify-center mb-8">
+                            <InstitutionalLogo />
+                        </div>
+                        <h2 className="text-xl font-semibold text-center text-slate-700 mb-1">LabFlow 2026</h2>
+                        <p className="text-center text-slate-500 mb-6 text-sm">Controle de Almoxarifado & Adm</p>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Seu Nome</label>
+                                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: João Silva" className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Função</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button onClick={() => setRole('lab_tech')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition ${role === 'lab_tech' ? 'bg-blue-50 border-blue-500 text-blue-700 ring-1 ring-blue-500' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                        <Icons.Beaker /> <span className="text-xs font-medium">Laboratório</span>
+                                    </button>
+                                    <button onClick={() => setRole('logistics')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition ${role === 'logistics' ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                        <Icons.Truck /> <span className="text-xs font-medium">Logística</span>
+                                    </button>
+                                    <button onClick={() => setRole('admin')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 transition ${role === 'admin' ? 'bg-purple-50 border-purple-500 text-purple-700 ring-1 ring-purple-500' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                        <Icons.Briefcase /> <span className="text-xs font-medium">Admin</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {role === 'lab_tech' ? (
+                                <div className="fade-in">
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">Setor</label>
+                                    <div className="relative">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Building2 /></div>
+                                        <select value={sector} onChange={(e) => setSector(e.target.value)} className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                            <option value="" disabled>Selecione seu setor...</option>
+                                            {SETORES.map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="fade-in">
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">Senha de Acesso</label>
+                                    <div className="relative">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Lock /></div>
+                                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
+                                    </div>
+                                </div>
+                            )}
+
+                            {error && <div className="text-red-500 text-sm font-medium text-center bg-red-50 p-2 rounded">{error}</div>}
+
+                            <button onClick={handleEnter} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow transition mt-4 uppercase tracking-wide">
+                                Entrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [user, setUser] = React.useState(null);
+            const [appUser, setAppUser] = React.useState(null);
+            const [requests, setRequests] = React.useState([]);
+            const [notices, setNotices] = React.useState({ logistics: '', admin: '' });
+            const [loading, setLoading] = React.useState(true);
+            const [view, setView] = React.useState('active'); // 'active' ou 'history'
+
+            // Form
+            const [newItem, setNewItem] = React.useState('');
+            const [quantity, setQuantity] = React.useState('');
+            const [unit, setUnit] = React.useState('un');
+            const [category, setCategory] = React.useState('reagente');
+            const [isUrgent, setIsUrgent] = React.useState(false);
+            const [notes, setNotes] = React.useState('');
+            const [searchTerm, setSearchTerm] = React.useState('');
+            const [draftSaved, setDraftSaved] = React.useState(false);
+
+            // Modal & Status Logic
+            const [modalOpen, setModalOpen] = React.useState(false);
+            const [selectedReqId, setSelectedReqId] = React.useState(null);
+            const [stockMessage, setStockMessage] = React.useState('');
+
+            React.useEffect(() => {
+                signInAnonymously(auth).catch((error) => console.error("Erro Auth:", error));
+                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                    setUser(currentUser);
+                    const savedUser = localStorage.getItem('labflow_user_v2');
+                    if (savedUser) setAppUser(JSON.parse(savedUser));
+                    setLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            // Listener de Avisos
+            React.useEffect(() => {
+                if (!user) return;
+                const noticeRef = doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG');
+                const unsubscribe = onSnapshot(noticeRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        setNotices(docSnap.data());
+                    } else {
+                        setDoc(noticeRef, { logistics: '', admin: '' });
+                    }
+                });
+                return () => unsubscribe();
+            }, [user]);
+
+            // Autosave Logic
+            React.useEffect(() => {
+                const savedDraft = localStorage.getItem('labflow_draft_v1');
+                if (savedDraft) {
+                    try {
+                        const draft = JSON.parse(savedDraft);
+                        setNewItem(draft.item || '');
+                        setQuantity(draft.quantity || '');
+                        setUnit(draft.unit || 'un');
+                        setCategory(draft.category || 'reagente');
+                        setNotes(draft.notes || '');
+                        setIsUrgent(draft.isUrgent || false);
+                    } catch (e) { console.error(e); }
+                }
+            }, []);
+
+            React.useEffect(() => {
+                if (appUser && (newItem || quantity || notes)) {
+                    const draft = { item: newItem, quantity, unit, category, notes, isUrgent };
+                    localStorage.setItem('labflow_draft_v1', JSON.stringify(draft));
+                    setDraftSaved(true);
+                    const timer = setTimeout(() => setDraftSaved(false), 2000);
+                    return () => clearTimeout(timer);
+                }
+            }, [newItem, quantity, unit, category, notes, isUrgent, appUser]);
+
+            // Listener de Pedidos
+            React.useEffect(() => {
+                if (!user) return;
+                const q = query(collection(db, 'solicitacoes_lab_2026'), orderBy('createdAt', 'desc'));
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    const docs = snapshot.docs
+                        .filter(d => d.id !== 'NOTICES_CONFIG')
+                        .map(doc => ({ id: doc.id, ...doc.data() }));
+                    setRequests(docs);
+                }, (error) => { console.error(error); });
+                return () => unsubscribe();
+            }, [user]);
+
+            const handleLogin = (userData) => {
+                setAppUser(userData);
+                localStorage.setItem('labflow_user_v2', JSON.stringify(userData));
+            };
+
+            const handleLogout = () => {
+                setAppUser(null);
+                localStorage.removeItem('labflow_user_v2');
+            };
+
+            const handleUpdateNotice = async (newNotices) => {
+                try {
+                    await updateDoc(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), newNotices);
+                } catch (e) { console.error("Erro ao atualizar aviso:", e); }
+            };
+
+            const handleSubmitRequest = async (e) => {
+                e.preventDefault();
+                if (!newItem.trim() || !quantity) return;
+                try {
+                    await addDoc(collection(db, 'solicitacoes_lab_2026'), {
+                        item: newItem, quantity, unit, category, isUrgent, notes,
+                        requesterName: appUser.name, requesterSector: appUser.sector, requesterId: user.uid,
+                        createdAt: new Date().toISOString(), status: 'pending', statusUpdatedAt: new Date().toISOString()
+                    });
+                    setNewItem(''); setQuantity(''); setNotes(''); setIsUrgent(false);
+                    localStorage.removeItem('labflow_draft_v1');
+                    alert('Solicitação enviada!');
+                } catch (error) { alert("Erro ao enviar: " + error.message); }
+            };
+
+            const handleSaveStockInfo = async (id, code, location, itemName) => {
+                try {
+                    const ref = doc(db, 'solicitacoes_lab_2026', id);
+                    await updateDoc(ref, { itemCode: code, storageLocation: location });
+                    const catalog = JSON.parse(localStorage.getItem('labflow_catalog') || '{}');
+                    catalog[itemName.trim().toLowerCase()] = { code, loc: location };
+                    localStorage.setItem('labflow_catalog', JSON.stringify(catalog));
+                } catch (e) { console.error(e); }
+            };
+
+            const handleApprovePartial = async (id, newQty, originalQty) => {
+                try {
+                    const ref = doc(db, 'solicitacoes_lab_2026', id);
+                    await updateDoc(ref, { 
+                        status: 'approved',
+                        quantity: newQty,
+                        statusUpdatedAt: new Date().toISOString(),
+                        logisticsMessage: `Qtd Ajustada. Solicitado Originalmente: ${originalQty}`
+                    });
+                } catch (e) { console.error(e); }
+            };
+
+            const handleMarkRestocked = async (id) => {
+                try {
+                    const ref = doc(db, 'solicitacoes_lab_2026', id);
+                    await updateDoc(ref, { stockRestored: true });
+                } catch (e) { console.error(e); }
+            };
+
+            const handleExportPDF = () => {
+                const sevenDaysAgo = new Date();
+                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                
+                let dataToExport = requests.filter(r => new Date(r.createdAt) > sevenDaysAgo);
+
+                // FILTRO PDF ESPECÍFICO ATUALIZADO
+                if (appUser.role === 'lab_tech') {
+                    // Lab Tech só baixa do seu setor
+                    dataToExport = dataToExport.filter(r => r.requesterSector === appUser.sector);
+                } else if (appUser.role === 'logistics') {
+                    // Logística baixa só suas categorias
+                    dataToExport = dataToExport.filter(r => CAT_GROUPS.logistics.includes(r.category));
+                } else if (appUser.role === 'admin') {
+                    // Adm baixa só suas categorias
+                    dataToExport = dataToExport.filter(r => CAT_GROUPS.admin.includes(r.category));
+                }
+                
+                if (dataToExport.length === 0) return alert("Nenhum dado recente encontrado para seu perfil/setor.");
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('l', 'mm', 'a4');
+
+                doc.setFontSize(18);
+                doc.setTextColor(40, 40, 40);
+                doc.text("Relatório Semanal - LabFlow 2026", 14, 22);
+
+                doc.setFontSize(10);
+                doc.setTextColor(100);
+                doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 28);
+                doc.text(`Perfil: ${appUser.role === 'logistics' ? 'Logística' : appUser.role === 'admin' ? 'Administração' : appUser.sector}`, 14, 33);
+
+                const tableColumn = ["Data", "Cód", "Item", "Local", "Qtd", "Categoria", "Solicitante", "Status"];
+                const tableRows = [];
+
+                dataToExport.forEach(req => {
+                    const catLabel = CAT_LABELS[req.category] || req.category;
+                    const reqData = [
+                        new Date(req.createdAt).toLocaleDateString('pt-BR'),
+                        req.itemCode || '-',
+                        req.item,
+                        req.storageLocation || '-',
+                        `${req.quantity} ${req.unit}`,
+                        catLabel, // Mostra nome legível da categoria
+                        `${req.requesterName} (${req.requesterSector})`,
+                        req.status === 'approved' ? 'Disp.' : req.status === 'out_of_stock' ? 'Falta' : 'Pend.'
+                    ];
+                    tableRows.push(reqData);
+                });
+
+                doc.autoTable({
+                    head: [tableColumn],
+                    body: tableRows,
+                    startY: 40,
+                    styles: { fontSize: 8 },
+                    headStyles: { fillColor: [37, 99, 235] },
+                    alternateRowStyles: { fillColor: [245, 245, 245] }
+                });
+
+                doc.save(`relatorio_${appUser.sector || 'geral'}.pdf`);
+            };
+
+            const handleOutOfStockClick = (id) => {
+                setSelectedReqId(id);
+                setStockMessage('');
+                setModalOpen(true);
+            };
+
+            const confirmOutOfStock = async () => {
+                if (!selectedReqId) return;
+                try {
+                    const ref = doc(db, 'solicitacoes_lab_2026', selectedReqId);
+                    await updateDoc(ref, { 
+                        status: 'out_of_stock', 
+                        statusUpdatedAt: new Date().toISOString(),
+                        logisticsMessage: stockMessage || ''
+                    });
+                    setModalOpen(false);
+                    setStockMessage('');
+                    setSelectedReqId(null);
+                } catch (e) { console.error(e); }
+            };
+
+            const updateStatus = async (id, newStatus) => {
+                try {
+                    const ref = doc(db, 'solicitacoes_lab_2026', id);
+                    const updateData = { status: newStatus, statusUpdatedAt: new Date().toISOString() };
+                    if (newStatus === 'approved' || newStatus === 'pending') updateData.logisticsMessage = '';
+                    await updateDoc(ref, updateData);
+                } catch (e) { console.error(e); }
+            };
+
+            const deleteRequest = async (id) => {
+                if (confirm('Excluir?')) await deleteDoc(doc(db, 'solicitacoes_lab_2026', id));
+            };
+
+            // --- SEPARAÇÃO DE LISTAS (ATIVOS vs HISTÓRICO) ---
+            const { activeList, historyList } = React.useMemo(() => {
+                if (!appUser) return { activeList: [], historyList: [] };
+                
+                const term = searchTerm.toLowerCase();
+                // 1. Filtrar por usuário/role primeiro
+                let baseList = requests.filter(req => {
+                    // Filtro de Texto
+                    const matchText = req.item.toLowerCase().includes(term) ||
+                                      req.requesterName.toLowerCase().includes(term) ||
+                                      (req.requesterSector && req.requesterSector.toLowerCase().includes(term));
+                    
+                    // Filtro de Role (VISUALIZAÇÃO EM TELA)
+                    let matchRole = true;
+                    if (appUser.role === 'logistics') {
+                        matchRole = CAT_GROUPS.logistics.includes(req.category);
+                    } else if (appUser.role === 'admin') {
+                        matchRole = CAT_GROUPS.admin.includes(req.category);
+                    }
+                    
+                    return matchText && matchRole;
+                });
+
+                const active = [];
+                const history = [];
+
+                baseList.forEach(req => {
+                    const isFinished = req.status === 'approved' || req.status === 'out_of_stock';
+                    const recent = isRecent(req.statusUpdatedAt || req.createdAt, 7); // 7 Dias
+
+                    if (req.status === 'pending') {
+                        active.push(req);
+                    } else if (isFinished && recent) {
+                        active.push(req);
+                    } else {
+                        history.push(req);
+                    }
+                });
+
+                return { activeList: active, historyList: history };
+            }, [requests, searchTerm, appUser]);
+
+            // SEPARAR HISTÓRICO EM DUAS LISTAS
+            const missingHistory = historyList.filter(req => req.status === 'out_of_stock');
+            const deliveredHistory = historyList.filter(req => req.status === 'approved');
+
+            const stats = React.useMemo(() => ({
+                pending: requests.filter(r => r.status === 'pending').length,
+                urgent: requests.filter(r => r.status === 'pending' && r.isUrgent).length,
+            }), [requests]);
+
+            if (loading) return <div className="flex h-screen items-center justify-center text-slate-500">Conectando...</div>;
+            if (!appUser) return <LoginScreen onLogin={handleLogin} />;
+
+            return (
+                <div className="min-h-screen pb-20 fade-in">
+                    
+                    {/* --- AVISOS --- */}
+                    <NoticeBanner notices={notices} userRole={appUser.role} onUpdateNotice={handleUpdateNotice} />
+
+                    {/* Header */}
+                    <header className="bg-white text-slate-800 shadow-sm border-b border-slate-200 sticky top-0 z-10">
+                        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+                            <div className="flex items-center gap-4 select-none">
+                                <InstitutionalLogo />
+                                <div className="hidden sm:block h-8 w-px bg-slate-200"></div>
+                                <div>
+                                    <h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1>
+                                    <p className="text-xs text-slate-500 uppercase">{appUser.role === 'admin' ? 'ADMINISTRAÇÃO' : appUser.role === 'logistics' ? 'LOGÍSTICA' : appUser.sector}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={handleExportPDF} className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold py-2 px-3 rounded transition" title="Baixar PDF Semanal">
+                                    <Icons.FileText /> <span className="hidden sm:inline">PDF</span>
+                                </button>
+                                <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 p-2 transition"><Icons.LogOut /></button>
+                            </div>
+                        </div>
+                        <div className="bg-blue-600 px-4 py-2 text-center text-xs sm:text-sm font-medium text-white shadow-inner flex justify-center gap-6">
+                            <span>🧪 Lab: <span className="text-yellow-300 font-bold">{getNextMonday()}</span></span>
+                            <span>📎 Escritório: <span className="text-yellow-300 font-bold">{getNextOfficeDay()}</span></span>
+                        </div>
+                    </header>
+
+                    <main className="max-w-5xl mx-auto px-4 py-6">
+                        
+                        {/* ABAS DE NAVEGAÇÃO */}
+                        <div className="flex gap-4 mb-6 border-b border-slate-200">
+                            <button 
+                                onClick={() => setView('active')}
+                                className={`pb-2 px-1 text-sm font-bold border-b-2 transition ${view === 'active' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Em Aberto / Semana Atual
+                            </button>
+                            <button 
+                                onClick={() => setView('history')}
+                                className={`pb-2 px-1 text-sm font-bold border-b-2 transition flex items-center gap-2 ${view === 'history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <Icons.History /> Histórico de Pedidos
+                            </button>
+                        </div>
+
+                        {/* --- VISÃO ATIVA --- */}
+                        {view === 'active' && (
+                            <>
+                                {/* Form (Só Lab Tech Vê) */}
+                                {appUser.role === 'lab_tech' && (
+                                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-8 relative">
+                                        {draftSaved && <div className="absolute top-0 right-0 bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded-bl-lg flex items-center gap-1"><Icons.Save /> Salvo</div>}
+                                        <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><div className="text-blue-600"><Icons.ClipboardList /></div> Nova Solicitação</h2>
+                                        <form onSubmit={handleSubmitRequest} className="space-y-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                                                <div className="md:col-span-5">
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Item</label>
+                                                    <input type="text" value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="Ex: Caneta Azul ou Ácido Sulfúrico" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd</label>
+                                                    <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Unid</label>
+                                                    <select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none">
+                                                        <option value="un">Unid.</option><option value="cx">Caixa</option><option value="ml">ml</option><option value="l">Litros</option><option value="pct">Pacote</option>
+                                                    </select>
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoria</label>
+                                                    <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none">
+                                                        <optgroup label="Logística (Almoxarifado)">
+                                                            <option value="reagente">🧪 Reagente</option>
+                                                            <option value="materiais">📦 Materiais</option>
+                                                            <option value="consumivel_log">🧴 Consumível (Lab)</option>
+                                                        </optgroup>
+                                                        <optgroup label="Administração (Escritório)">
+                                                            <option value="epi">🥽 EPI</option>
+                                                            <option value="escritorio">📎 Escritório</option>
+                                                            <option value="consumivel_adm">🗑️ Consumível (Adm)</option>
+                                                        </optgroup>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col md:flex-row gap-4 items-center">
+                                                <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações..." className="flex-1 w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm outline-none" />
+                                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                                    <label className="flex items-center gap-2 cursor-pointer bg-red-50 text-red-700 px-3 py-2.5 rounded-lg border border-red-100 hover:bg-red-100 transition whitespace-nowrap">
+                                                        <input type="checkbox" checked={isUrgent} onChange={(e) => setIsUrgent(e.target.checked)} className="w-4 h-4 text-red-600 rounded" /> <span className="font-semibold text-sm">Urgente</span>
+                                                    </label>
+                                                    <button type="submit" className="flex-1 bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-blue-700 shadow-md transition whitespace-nowrap">Adicionar</button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                )}
+
+                                {/* List & Filters */}
+                                <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6">
+                                    <div className="relative w-full md:w-96">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
+                                        <input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
+                                    </div>
+                                    <div className="text-sm font-medium text-slate-600 bg-slate-200 px-3 py-1 rounded-full">Exibindo: {activeList.length}</div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {activeList.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhum pedido pendente ou recente.</div> : 
+                                    activeList.map((req) => (
+                                        <RequestCard 
+                                            key={req.id} 
+                                            req={req} 
+                                            role={appUser.role} 
+                                            onDelete={deleteRequest} 
+                                            onUpdateStatus={updateStatus}
+                                            onOutOfStock={handleOutOfStockClick}
+                                            onSaveStockInfo={handleSaveStockInfo}
+                                            onApprovePartial={handleApprovePartial}
+                                        />
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        {/* --- VISÃO HISTÓRICO SEPARADO --- */}
+                        {view === 'history' && (
+                            <div className="space-y-8 animate-in fade-in">
+                                <div className="bg-blue-50 p-4 rounded-lg text-blue-800 text-sm border border-blue-100">
+                                    <strong>Nota:</strong> Itens finalizados (Entregues ou Em Falta) são movidos automaticamente para cá após 7 dias.
+                                </div>
+                                <div className="relative w-full md:w-96 mb-4">
+                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
+                                    <input type="text" placeholder="Buscar no histórico..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
+                                </div>
+
+                                {/* SEÇÃO 1: EM FALTA */}
+                                <div>
+                                    <h3 className="text-lg font-bold text-red-700 mb-3 flex items-center gap-2"><Icons.PackageX /> Itens em Falta (Histórico)</h3>
+                                    <div className="space-y-3">
+                                        {missingHistory.length === 0 ? <div className="text-slate-400 text-sm italic">Nenhum item em falta no histórico.</div> : 
+                                        missingHistory.map((req) => (
+                                            <HistoryRow key={req.id} req={req} onMarkRestocked={handleMarkRestocked} />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* SEÇÃO 2: ENTREGUES */}
+                                <div>
+                                    <h3 className="text-lg font-bold text-green-700 mb-3 flex items-center gap-2"><Icons.CheckCircle2 /> Itens Entregues/Disponíveis (Histórico)</h3>
+                                    <div className="space-y-3">
+                                        {deliveredHistory.length === 0 ? <div className="text-slate-400 text-sm italic">Nenhum item entregue no histórico.</div> : 
+                                        deliveredHistory.map((req) => (
+                                            <HistoryRow key={req.id} req={req} onMarkRestocked={handleMarkRestocked} />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                    </main>
+                    
+                    {modalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay fade-in">
+                            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-bold text-red-600 flex items-center gap-2"><Icons.PackageX /> Item Indisponível</h3>
+                                    <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-600"><Icons.X /></button>
+                                </div>
+                                <p className="text-sm text-slate-600 mb-2">Informe o motivo ou previsão para o solicitante:</p>
+                                <textarea 
+                                    value={stockMessage} 
+                                    onChange={(e) => setStockMessage(e.target.value)} 
+                                    placeholder="Ex: Em processo de compra (Previsão 15/02)..."
+                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none h-24 text-sm mb-4"
+                                ></textarea>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setModalOpen(false)} className="flex-1 py-2 border border-slate-300 rounded-lg text-slate-600 font-semibold hover:bg-slate-50">Cancelar</button>
+                                    <button onClick={confirmOutOfStock} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow">Confirmar</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
