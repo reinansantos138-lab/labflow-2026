@@ -39,13 +39,10 @@
             border-bottom: 1px solid #fbcfe8;
         }
         .theme-carnaval .btn-primary {
-            background-color: #be185d; /* Pink 700 */
+            background-color: #be185d;
         }
         .theme-carnaval .btn-primary:hover {
-            background-color: #9d174d; /* Pink 800 */
-        }
-        .theme-carnaval .accent-text {
-            color: #be185d;
+            background-color: #9d174d;
         }
     </style>
 </head>
@@ -122,6 +119,7 @@
             FileText: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>,
             X: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
             Lock: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+            Unlock: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
             History: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>,
             RefreshCw: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>,
             Edit: () => <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
@@ -130,8 +128,7 @@
             Box: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" x2="12" y1="22.08" y2="12"/></svg>,
             ArrowUpCircle: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4"/><path d="M12 16V8"/></svg>,
             ArrowDownCircle: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8 12 4 4 4-4"/><path d="M12 8v8"/></svg>,
-            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
-            Mask: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12c0 5.5 4.5 10 10 10s10-4.5 10-10S17.5 2 12 2 2 6.5 2 12z"/><path d="M15 13a3 3 0 1 0-6 0"/><path d="M9 6a3 3 0 1 0 6 0"/></svg>
+            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
         };
 
         const getNextMonday = () => { const d = new Date(); d.setDate(d.getDate() + ((1 + 7 - d.getDay()) % 7)); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
@@ -139,16 +136,12 @@
         const formatDate = (isoString) => { if (!isoString) return '-'; const date = new Date(isoString); return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
         const isRecent = (dateString, days = 7) => { if (!dateString) return false; const date = new Date(dateString); const now = new Date(); const diffTime = Math.abs(now - date); return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) <= days; };
         
-        // --- FUNÇÃO TEMA CARNAVAL ---
         const isCarnivalSeason = () => {
             const d = new Date();
-            // Retorna true se for mês de Fevereiro (Mês 1 no JS)
             return d.getMonth() === 1;
         };
 
-        // --- SISTEMA DE ESTOQUE ---
         const processStockTransaction = async (itemName, quantity, type, origin, user, requestId = null, notes = '') => {
-            // Busca o item pelo nome exato no estoque
             const q = query(collection(db, 'estoque_lab_2026'), where('name', '==', itemName));
             const querySnapshot = await getDocs(q);
 
@@ -161,26 +154,23 @@
             const currentQty = parseInt(stockItem.data().currentQty || 0);
             const change = parseInt(quantity);
 
-            // Verificação de Saldo (apenas para saídas)
             if (type === 'out' && currentQty < change) {
                 throw new Error(`Estoque insuficiente de "${itemName}". Atual: ${currentQty}, Necessário: ${change}`);
             }
 
             const newQty = type === 'in' ? currentQty + change : currentQty - change;
 
-            // Atualiza Estoque
             await updateDoc(doc(db, 'estoque_lab_2026', stockItem.id), {
                 currentQty: newQty,
                 updatedAt: new Date().toISOString()
             });
 
-            // Registra Movimentação
             await addDoc(collection(db, 'movimentacoes_estoque_2026'), {
                 itemId: stockItem.id,
                 itemName: itemName,
-                type: type, // 'in' or 'out'
+                type: type,
                 quantity: change,
-                origin: origin, // 'pedido' or 'manual'
+                origin: origin,
                 requestId: requestId,
                 user: user.name,
                 userRole: user.role,
@@ -188,6 +178,41 @@
                 balanceAfter: newQty,
                 notes: notes
             });
+        };
+
+        // --- COMPONENTES (ORDENADOS) ---
+
+        const LoginScreen = ({ onLogin }) => {
+            const [name, setName] = React.useState('');
+            const [role, setRole] = React.useState('lab_tech');
+            const [sector, setSector] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            const [error, setError] = React.useState('');
+
+            const handleEnter = () => {
+                setError(''); if (!name.trim()) return setError("Digite seu nome.");
+                if (role === 'logistics') { if (password !== SENHA_LOGISTICA) return setError("Senha incorreta."); onLogin({ name, role, sector: 'LOGÍSTICA' }); }
+                else if (role === 'admin') { if (password !== SENHA_ADMIN) return setError("Senha incorreta."); onLogin({ name, role, sector: 'ADMINISTRAÇÃO' }); }
+                else if (role === 'master') { if (password !== SENHA_MASTER) return setError("Senha incorreta."); onLogin({ name, role, sector: 'GESTOR DO SISTEMA' }); }
+                else { if (!sector) return setError("Selecione seu setor."); onLogin({ name, role, sector }); }
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+                    <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-slate-100 fade-in">
+                        <div className="flex justify-center mb-8"><InstitutionalLogo /></div>
+                        <h2 className="text-xl font-semibold text-center text-slate-700 mb-1">LabFlow 2026</h2>
+                        <p className="text-center text-slate-500 mb-6 text-sm">Controle de Almoxarifado & Adm</p>
+                        <div className="space-y-4">
+                            <div><label className="block text-sm font-bold text-slate-700 mb-1">Seu Nome</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: João Silva" className="w-full p-3 border border-slate-300 rounded-lg outline-none" /></div>
+                            <div><label className="block text-sm font-bold text-slate-700 mb-1">Função</label><div className="grid grid-cols-2 gap-2"><button onClick={() => setRole('lab_tech')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'lab_tech' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-200 text-slate-500'}`}><Icons.Beaker /><span className="text-xs font-medium">Lab</span></button><button onClick={() => setRole('logistics')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'logistics' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 text-slate-500'}`}><Icons.Truck /><span className="text-xs font-medium">Logística</span></button><button onClick={() => setRole('admin')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'admin' ? 'bg-purple-50 border-purple-500 text-purple-700' : 'border-slate-200 text-slate-500'}`}><Icons.Briefcase /><span className="text-xs font-medium">Admin</span></button><button onClick={() => setRole('master')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'master' ? 'bg-red-50 border-red-500 text-red-700' : 'border-slate-200 text-slate-500'}`}><Icons.Shield /><span className="text-xs font-medium">Gestor</span></button></div></div>
+                            {role === 'lab_tech' ? (<div className="fade-in"><label className="block text-sm font-bold text-slate-700 mb-1">Setor</label><div className="relative"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Building2 /></div><select value={sector} onChange={(e) => setSector(e.target.value)} className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg outline-none bg-white"><option value="" disabled>Selecione...</option>{SETORES.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div>) : (<div className="fade-in"><label className="block text-sm font-bold text-slate-700 mb-1">Senha</label><div className="relative"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Lock /></div><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg outline-none" /></div></div>)}
+                            {error && <div className="text-red-500 text-sm font-medium text-center bg-red-50 p-2 rounded">{error}</div>}
+                            <button onClick={handleEnter} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow uppercase">Entrar</button>
+                        </div>
+                    </div>
+                </div>
+            );
         };
 
         const NoticeBanner = ({ notices, userRole, onUpdateNotice }) => {
@@ -199,6 +224,31 @@
             if (isEditing) return (<div className="bg-yellow-50 border-b border-yellow-200 p-4 animate-in fade-in"><h4 className="text-sm font-bold text-yellow-800 mb-2 flex items-center gap-2"><Icons.Edit/> Editar Aviso</h4><div className="flex flex-col gap-3">{(userRole === 'logistics' || userRole === 'master') && <input className="w-full p-2 border rounded text-sm outline-none" value={tempLogistics} onChange={e => setTempLogistics(e.target.value)} placeholder="Aviso Logística..." />}{(userRole === 'admin' || userRole === 'master') && <input className="w-full p-2 border rounded text-sm outline-none" value={tempAdmin} onChange={e => setTempAdmin(e.target.value)} placeholder="Aviso Administração..." />}<div className="flex gap-2 justify-end"><button onClick={() => setIsEditing(false)} className="px-3 py-1 text-xs text-slate-500 rounded border bg-white">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-4 py-1 rounded text-xs font-bold shadow-sm">Salvar</button></div></div></div>);
             if (!notices.logistics && !notices.admin && userRole !== 'logistics' && userRole !== 'admin' && userRole !== 'master') return null;
             return (<div className="bg-gradient-to-r from-orange-50 via-yellow-50 to-orange-50 border-b border-orange-200 relative shadow-sm"><div className="max-w-5xl mx-auto px-4 py-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left min-h-[40px]"><div className="flex-1 flex flex-col sm:flex-row gap-x-6 gap-y-2 justify-center sm:justify-start items-center w-full">{notices.logistics && <div className="flex items-center gap-2 text-orange-800 animate-blink font-semibold text-sm"><span className="bg-orange-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Logística</span><span>{notices.logistics}</span></div>}{notices.admin && <div className="flex items-center gap-2 text-indigo-900 animate-blink font-semibold text-sm"><span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Adm</span><span>{notices.admin}</span></div>}</div>{userRole !== 'lab_tech' && <button onClick={() => setIsEditing(true)} className="text-slate-400 hover:text-blue-600 p-1.5 bg-white/50 hover:bg-white rounded-full transition"><Icons.Edit /></button>}</div></div>);
+        };
+
+        const InventoryItemCard = ({ item, isLocked, onUpdateQty, onDelete, onEdit }) => {
+            const [isEditing, setIsEditing] = React.useState(false);
+            const [editData, setEditData] = React.useState({ ...item });
+            const handleSave = () => { onEdit(item.id, editData); setIsEditing(false); };
+            const handleCancel = () => { setEditData({ ...item }); setIsEditing(false); };
+            const getStatusColor = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'bg-red-100 text-red-700 border-red-200'; if (cur >= minimum && cur <= minimum * 1.2) return 'bg-yellow-100 text-yellow-800 border-yellow-200'; return 'bg-green-100 text-green-700 border-green-200'; };
+            const getStatusLabel = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'Crítico'; if (cur >= minimum && cur <= minimum * 1.2) return 'Atenção'; return 'OK'; };
+
+            if (isEditing) {
+                return (
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden">
+                        <div className="flex flex-col gap-2"><input className="p-1.5 border rounded text-sm font-bold" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Nome" /><select className="p-1.5 border rounded text-xs" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})}><optgroup label="Logística"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup><optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup></select><input className="p-1.5 border rounded text-xs" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} placeholder="Local" /><div className="grid grid-cols-3 gap-1"><input type="number" className="p-1.5 border rounded text-xs" value={editData.currentQty} onChange={e => setEditData({...editData, currentQty: e.target.value})} placeholder="Qtd" /><input type="number" className="p-1.5 border rounded text-xs" value={editData.minQty} onChange={e => setEditData({...editData, minQty: e.target.value})} placeholder="Min" /><select className="p-1.5 border rounded text-xs" value={editData.unit} onChange={e => setEditData({...editData, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="kg">kg</option><option value="pct">pct</option></select></div><div className="flex justify-end gap-2 mt-2"><button onClick={handleCancel} className="text-xs text-slate-500 hover:underline">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">Salvar</button></div></div>
+                    </div>
+                );
+            }
+            return (
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
+                    <div className={`absolute top-0 right-0 px-3 py-1 text-[10px] font-bold uppercase rounded-bl-lg border-l border-b ${getStatusColor(item.currentQty, item.minQty)}`}>{getStatusLabel(item.currentQty, item.minQty)}</div>
+                    <div className="flex justify-between items-start mt-2"><div><h4 className="font-bold text-slate-800 text-lg leading-tight">{item.name}</h4><div className="text-xs text-slate-500 mb-2 mt-1">{CAT_LABELS[item.category] || item.category} • Local: {item.location || '-'}</div></div></div>
+                    <div className="flex items-center justify-between mt-4 bg-slate-50 p-3 rounded-lg"><div className="text-center"><div className="text-xs text-slate-400 uppercase">Mín</div><div className="font-bold text-slate-600">{item.minQty}</div></div><div className="text-center"><div className="text-xs text-slate-400 uppercase">Atual</div><div className="text-2xl font-bold text-blue-600">{item.currentQty} <span className="text-sm text-slate-400 font-normal">{item.unit}</span></div></div><div className="flex flex-col gap-1"><button onClick={() => onUpdateQty(item.id, item.name, item.currentQty, 1)} className="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200"><Icons.Plus/></button><button onClick={() => onUpdateQty(item.id, item.name, item.currentQty, -1)} className="p-1 bg-red-100 text-red-700 rounded hover:bg-red-200"><Icons.X/></button></div></div>
+                    {!isLocked && (<div className="flex justify-between mt-3 pt-3 border-t border-slate-100 animate-in fade-in"><button onClick={() => onDelete(item.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded transition"><Icons.Trash2 /></button><button onClick={() => setIsEditing(true)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded transition"><Icons.Edit /></button></div>)}
+                </div>
+            );
         };
 
         const RequestCard = ({ req, role, onDelete, onUpdateStatus, onOutOfStock, onSaveStockInfo, onApprovePartial, onUpdateReq, currentUser }) => {
@@ -216,36 +266,8 @@
             React.useEffect(() => { if (!req.itemCode && !req.storageLocation && role !== 'lab_tech') { try { const catalog = JSON.parse(localStorage.getItem('labflow_catalog') || '{}'); const savedItem = catalog[req.item.trim().toLowerCase()]; if (savedItem) { if (savedItem.code) { setItemCode(savedItem.code); setHasChanges(true); } if (savedItem.loc) { setStorageLocation(savedItem.loc); setHasChanges(true); } } } catch (e) {} } }, [req.item, role]);
 
             const handleSaveInfo = () => { onSaveStockInfo(req.id, itemCode, storageLocation, req.item); setHasChanges(false); };
-            
-            // Lógica de Aprovação TOTAL com Baixa de Estoque
-            const handleStatusAction = async (status) => {
-                if (status === 'approved') {
-                    try {
-                        // Tenta dar baixa no estoque
-                        await processStockTransaction(req.item, req.quantity, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Total (${req.quantity} ${req.unit})`);
-                        // Se sucesso, salva infos extras e atualiza status
-                        onSaveStockInfo(req.id, itemCode, storageLocation, req.item);
-                        onUpdateStatus(req.id, status);
-                    } catch (error) {
-                        alert("Erro de Estoque: " + error.message);
-                    }
-                } else {
-                    onUpdateStatus(req.id, status);
-                }
-            };
-
-            // Lógica de Aprovação PARCIAL com Baixa de Estoque
-            const handlePartialConfirm = async () => {
-                try {
-                    await processStockTransaction(req.item, partialQty, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Parcial (${partialQty}/${req.quantity} ${req.unit})`);
-                    onSaveStockInfo(req.id, itemCode, storageLocation, req.item);
-                    onApprovePartial(req.id, partialQty, req.quantity);
-                    setShowPartialInput(false);
-                } catch (error) {
-                    alert("Erro de Estoque: " + error.message);
-                }
-            };
-
+            const handleStatusAction = async (status) => { if (status === 'approved') { try { await processStockTransaction(req.item, req.quantity, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Total (${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onUpdateStatus(req.id, status); } catch (error) { alert("Erro de Estoque: " + error.message); } } else { onUpdateStatus(req.id, status); } };
+            const handlePartialConfirm = async () => { try { await processStockTransaction(req.item, partialQty, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Parcial (${partialQty}/${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onApprovePartial(req.id, partialQty, req.quantity); setShowPartialInput(false); } catch (error) { alert("Erro de Estoque: " + error.message); } };
             const handleSaveEditReq = () => { onUpdateReq(req.id, { item: editItem, quantity: editQty, unit: editUnit, category: editCategory }); setIsEditingReq(false); };
             const isAdmCategory = CAT_GROUPS.admin.includes(req.category);
             const badgeColor = isAdmCategory ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200';
@@ -314,6 +336,7 @@
             const [items, setItems] = React.useState([]);
             const [searchTerm, setSearchTerm] = React.useState('');
             const [showForm, setShowForm] = React.useState(false);
+            const [isInventoryLocked, setIsInventoryLocked] = React.useState(true);
             const [newItem, setNewItem] = React.useState({ name: '', category: 'reagente', unit: 'un', currentQty: 0, minQty: 0, maxQty: 0, location: '', notes: '' });
 
             React.useEffect(() => {
@@ -337,48 +360,72 @@
                     await processStockTransaction(itemName, Math.abs(change), change > 0 ? 'in' : 'out', 'manual', currentUser, null, 'Ajuste Manual Rápido');
                 } catch (e) { alert(e.message); }
             };
+            
+            const handleDeleteItem = async (id) => {
+                if (confirm('Tem certeza que deseja excluir este item do estoque?')) {
+                    try { await deleteDoc(doc(db, 'estoque_lab_2026', id)); } catch(e) { console.error(e); }
+                }
+            };
+
+            const handleEditItem = async (id, updatedData) => {
+                try {
+                    await updateDoc(doc(db, 'estoque_lab_2026', id), { ...updatedData, updatedAt: new Date().toISOString() });
+                } catch (e) { console.error(e); }
+            };
 
             const filteredItems = items.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
-            const getStatusColor = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'bg-red-100 text-red-700 border-red-200'; if (cur >= minimum && cur <= minimum * 1.2) return 'bg-yellow-100 text-yellow-800 border-yellow-200'; return 'bg-green-100 text-green-700 border-green-200'; };
-            const getStatusLabel = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'Crítico'; if (cur >= minimum && cur <= minimum * 1.2) return 'Atenção'; return 'OK'; };
 
             return (
                 <div className="animate-in fade-in">
-                    <div className="flex justify-between items-center mb-6"><div className="relative w-full max-w-md"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div><input type="text" placeholder="Buscar item no estoque..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div><button onClick={() => setShowForm(!showForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow flex items-center gap-2"><Icons.Plus /> Novo Item</button></div>
-                    {showForm && (<div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6"><h3 className="font-bold text-slate-700 mb-3">Cadastrar Novo Item</h3><form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-4 gap-4"><input className="p-2 border rounded" placeholder="Nome do Item" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required /><select className="p-2 border rounded" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}><optgroup label="Logística"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup><optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup></select><input className="p-2 border rounded" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} /><select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="kg">kg</option></select><div className="md:col-span-4 grid grid-cols-3 gap-4"><input type="number" className="p-2 border rounded" placeholder="Qtd Atual" value={newItem.currentQty} onChange={e => setNewItem({...newItem, currentQty: e.target.value})} /><input type="number" className="p-2 border rounded" placeholder="Estoque Mínimo" value={newItem.minQty} onChange={e => setNewItem({...newItem, minQty: e.target.value})} /><input type="number" className="p-2 border rounded" placeholder="Estoque Máximo" value={newItem.maxQty} onChange={e => setNewItem({...newItem, maxQty: e.target.value})} /></div><button type="submit" className="md:col-span-4 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700">Salvar Item</button></form></div>)}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{filteredItems.map(item => (<div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden"><div className={`absolute top-0 right-0 px-3 py-1 text-[10px] font-bold uppercase rounded-bl-lg border-l border-b ${getStatusColor(item.currentQty, item.minQty)}`}>{getStatusLabel(item.currentQty, item.minQty)}</div><div className="flex justify-between items-start mt-2"><div><h4 className="font-bold text-slate-800 text-lg">{item.name}</h4><div className="text-xs text-slate-500 mb-2">{CAT_LABELS[item.category]} • Local: {item.location || '-'}</div></div></div><div className="flex items-center justify-between mt-4 bg-slate-50 p-3 rounded-lg"><div className="text-center"><div className="text-xs text-slate-400 uppercase">Mín</div><div className="font-bold text-slate-600">{item.minQty}</div></div><div className="text-center"><div className="text-xs text-slate-400 uppercase">Atual</div><div className="text-2xl font-bold text-blue-600">{item.currentQty} <span className="text-sm text-slate-400 font-normal">{item.unit}</span></div></div><div className="flex flex-col gap-1"><button onClick={() => handleUpdateQty(item.id, item.name, item.currentQty, 1)} className="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200"><Icons.ArrowUpCircle/></button><button onClick={() => handleUpdateQty(item.id, item.name, item.currentQty, -1)} className="p-1 bg-red-100 text-red-700 rounded hover:bg-red-200"><Icons.ArrowDownCircle/></button></div></div></div>))}</div>
-                </div>
-            );
-        };
-
-        const LoginScreen = ({ onLogin }) => {
-            const [name, setName] = React.useState('');
-            const [role, setRole] = React.useState('lab_tech');
-            const [sector, setSector] = React.useState('');
-            const [password, setPassword] = React.useState('');
-            const [error, setError] = React.useState('');
-
-            const handleEnter = () => {
-                setError(''); if (!name.trim()) return setError("Digite seu nome.");
-                if (role === 'logistics') { if (password !== SENHA_LOGISTICA) return setError("Senha incorreta."); onLogin({ name, role, sector: 'LOGÍSTICA' }); }
-                else if (role === 'admin') { if (password !== SENHA_ADMIN) return setError("Senha incorreta."); onLogin({ name, role, sector: 'ADMINISTRAÇÃO' }); }
-                else if (role === 'master') { if (password !== SENHA_MASTER) return setError("Senha incorreta."); onLogin({ name, role, sector: 'GESTOR DO SISTEMA' }); }
-                else { if (!sector) return setError("Selecione seu setor."); onLogin({ name, role, sector }); }
-            };
-
-            return (
-                <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-                    <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-slate-100 fade-in">
-                        <div className="flex justify-center mb-8"><InstitutionalLogo /></div>
-                        <h2 className="text-xl font-semibold text-center text-slate-700 mb-1">LabFlow 2026</h2>
-                        <p className="text-center text-slate-500 mb-6 text-sm">Controle de Almoxarifado & Adm</p>
-                        <div className="space-y-4">
-                            <div><label className="block text-sm font-bold text-slate-700 mb-1">Seu Nome</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: João Silva" className="w-full p-3 border border-slate-300 rounded-lg outline-none" /></div>
-                            <div><label className="block text-sm font-bold text-slate-700 mb-1">Função</label><div className="grid grid-cols-2 gap-2"><button onClick={() => setRole('lab_tech')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'lab_tech' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-200 text-slate-500'}`}><Icons.Beaker /><span className="text-xs font-medium">Lab</span></button><button onClick={() => setRole('logistics')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'logistics' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 text-slate-500'}`}><Icons.Truck /><span className="text-xs font-medium">Logística</span></button><button onClick={() => setRole('admin')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'admin' ? 'bg-purple-50 border-purple-500 text-purple-700' : 'border-slate-200 text-slate-500'}`}><Icons.Briefcase /><span className="text-xs font-medium">Admin</span></button><button onClick={() => setRole('master')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'master' ? 'bg-red-50 border-red-500 text-red-700' : 'border-slate-200 text-slate-500'}`}><Icons.Shield /><span className="text-xs font-medium">Gestor</span></button></div></div>
-                            {role === 'lab_tech' ? (<div className="fade-in"><label className="block text-sm font-bold text-slate-700 mb-1">Setor</label><div className="relative"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Building2 /></div><select value={sector} onChange={(e) => setSector(e.target.value)} className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg outline-none bg-white"><option value="" disabled>Selecione...</option>{SETORES.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div>) : (<div className="fade-in"><label className="block text-sm font-bold text-slate-700 mb-1">Senha</label><div className="relative"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Lock /></div><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg outline-none" /></div></div>)}
-                            {error && <div className="text-red-500 text-sm font-medium text-center bg-red-50 p-2 rounded">{error}</div>}
-                            <button onClick={handleEnter} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow uppercase">Entrar</button>
+                    <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <div className="relative w-full md:w-96">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
+                            <input type="text" placeholder="Buscar item no estoque..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
                         </div>
+                        
+                        <div className="flex gap-2">
+                             <button 
+                                onClick={() => setIsInventoryLocked(!isInventoryLocked)} 
+                                className={`px-4 py-2 rounded-lg font-bold shadow flex items-center gap-2 transition ${isInventoryLocked ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}
+                                title={isInventoryLocked ? "Destravar Edição" : "Travar Edição"}
+                            >
+                                {isInventoryLocked ? <><Icons.Lock /> Travado</> : <><Icons.Unlock /> Destravado</>}
+                            </button>
+                            <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow flex items-center gap-2">
+                                <Icons.Plus /> Novo Item
+                            </button>
+                        </div>
+                    </div>
+
+                    {showForm && (
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
+                            <h3 className="font-bold text-slate-700 mb-3">Cadastrar Novo Item</h3>
+                            <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <input className="p-2 border rounded" placeholder="Nome do Item" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
+                                <select className="p-2 border rounded" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}><optgroup label="Logística"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup><optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup></select>
+                                <input className="p-2 border rounded" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
+                                <select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="kg">kg</option><option value="pct">pct</option></select>
+                                <div className="md:col-span-4 grid grid-cols-3 gap-4">
+                                    <input type="number" className="p-2 border rounded" placeholder="Qtd Atual" value={newItem.currentQty} onChange={e => setNewItem({...newItem, currentQty: e.target.value})} />
+                                    <input type="number" className="p-2 border rounded" placeholder="Estoque Mínimo" value={newItem.minQty} onChange={e => setNewItem({...newItem, minQty: e.target.value})} />
+                                    <input type="number" className="p-2 border rounded" placeholder="Estoque Máximo" value={newItem.maxQty} onChange={e => setNewItem({...newItem, maxQty: e.target.value})} />
+                                </div>
+                                <button type="submit" className="md:col-span-4 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700">Salvar Item</button>
+                            </form>
+                        </div>
+                    )}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {filteredItems.map(item => (
+                            <InventoryItemCard 
+                                key={item.id} 
+                                item={item} 
+                                isLocked={isInventoryLocked}
+                                onUpdateQty={handleUpdateQty}
+                                onDelete={handleDeleteItem}
+                                onEdit={handleEditItem}
+                            />
+                        ))}
                     </div>
                 </div>
             );
@@ -390,11 +437,8 @@
             const [requests, setRequests] = React.useState([]);
             const [notices, setNotices] = React.useState({ logistics: '', admin: '' });
             const [loading, setLoading] = React.useState(true);
-            const [view, setView] = React.useState('active'); // active, history, inventory
-            
-            // New state for Autocomplete
+            const [view, setView] = React.useState('active'); 
             const [inventoryNames, setInventoryNames] = React.useState([]);
-
             const [newItem, setNewItem] = React.useState('');
             const [quantity, setQuantity] = React.useState('');
             const [unit, setUnit] = React.useState('un');
@@ -403,7 +447,6 @@
             const [notes, setNotes] = React.useState('');
             const [searchTerm, setSearchTerm] = React.useState('');
             const [draftSaved, setDraftSaved] = React.useState(false);
-
             const [modalOpen, setModalOpen] = React.useState(false);
             const [selectedReqId, setSelectedReqId] = React.useState(null);
             const [stockMessage, setStockMessage] = React.useState('');
@@ -412,18 +455,7 @@
             React.useEffect(() => { if (!user) return; onSnapshot(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), s => s.exists() ? setNotices(s.data()) : setDoc(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), { logistics: '', admin: '' })); }, [user]);
             React.useEffect(() => { if (appUser && (newItem || quantity || notes)) { localStorage.setItem('labflow_draft_v1', JSON.stringify({ item: newItem, quantity, unit, category, notes, isUrgent })); setDraftSaved(true); setTimeout(() => setDraftSaved(false), 2000); } }, [newItem, quantity, unit, category, notes, isUrgent, appUser]);
             React.useEffect(() => { if (!user) return; onSnapshot(query(collection(db, 'solicitacoes_lab_2026'), orderBy('createdAt', 'desc')), s => setRequests(s.docs.filter(d => d.id !== 'NOTICES_CONFIG').map(d => ({ id: d.id, ...d.data() })))); }, [user]);
-            
-            // Fetch Inventory Names for Autocomplete
-            React.useEffect(() => {
-                if (!user) return;
-                // Fetch item names from inventory collection for autocomplete suggestions
-                const q = query(collection(db, 'estoque_lab_2026'), orderBy('name'));
-                const unsubscribe = onSnapshot(q, (snapshot) => {
-                    const names = snapshot.docs.map(doc => doc.data().name);
-                    setInventoryNames(names);
-                });
-                return () => unsubscribe();
-            }, [user]);
+            React.useEffect(() => { if (!user) return; const q = query(collection(db, 'estoque_lab_2026'), orderBy('name')); const unsub = onSnapshot(q, (s) => setInventoryNames(s.docs.map(d => d.data().name))); return () => unsub(); }, [user]);
 
             const handleLogin = (u) => { setAppUser(u); localStorage.setItem('labflow_user_v2', JSON.stringify(u)); };
             const handleLogout = () => { setAppUser(null); localStorage.removeItem('labflow_user_v2'); };
@@ -437,14 +469,12 @@
             const confirmOutOfStock = async () => { if (!selectedReqId) return; await updateDoc(doc(db, 'solicitacoes_lab_2026', selectedReqId), { status: 'out_of_stock', statusUpdatedAt: new Date().toISOString(), logisticsMessage: stockMessage || '' }); setModalOpen(false); };
             const updateStatus = async (id, s) => { const d = { status: s, statusUpdatedAt: new Date().toISOString() }; if (s === 'approved' || s === 'pending') d.logisticsMessage = ''; await updateDoc(doc(db, 'solicitacoes_lab_2026', id), d); };
             const deleteRequest = async (id) => { if (confirm('Excluir?')) await deleteDoc(doc(db, 'solicitacoes_lab_2026', id)); };
-            
             const handleExportPDF = () => {
                 const d7 = new Date(); d7.setDate(d7.getDate() - 7);
                 let data = requests.filter(r => new Date(r.createdAt) > d7);
                 if (appUser.role === 'lab_tech') data = data.filter(r => r.requesterSector === appUser.sector);
                 else if (appUser.role === 'logistics') data = data.filter(r => CAT_GROUPS.logistics.includes(r.category));
                 else if (appUser.role === 'admin') data = data.filter(r => CAT_GROUPS.admin.includes(r.category));
-                
                 if (!data.length) return alert("Nada para exportar.");
                 const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4');
                 doc.setFontSize(18); doc.text("Relatório Semanal - LabFlow 2026", 14, 22);
@@ -452,25 +482,17 @@
                 doc.autoTable({ head: [["Data", "Cód", "Item", "Local", "Qtd", "Cat", "Solicitante", "Status"]], body: data.map(r => [new Date(r.createdAt).toLocaleDateString('pt-BR'), r.itemCode||'-', r.item, r.storageLocation||'-', `${r.quantity} ${r.unit}`, CAT_LABELS[r.category]||r.category, `${r.requesterName} (${r.requesterSector})`, r.status]), startY: 40 });
                 doc.save('relatorio.pdf');
             };
-
             const { activeList, historyList } = React.useMemo(() => {
                 if (!appUser) return { activeList: [], historyList: [] };
                 let list = requests.filter(r => r.item.toLowerCase().includes(searchTerm.toLowerCase()) || r.requesterName.toLowerCase().includes(searchTerm.toLowerCase()));
                 if (appUser.role === 'logistics') list = list.filter(r => CAT_GROUPS.logistics.includes(r.category));
                 if (appUser.role === 'admin') list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
-                
                 const active = [], history = [];
-                list.forEach(r => {
-                    const finished = r.status === 'approved' || r.status === 'out_of_stock';
-                    const recent = isRecent(r.statusUpdatedAt || r.createdAt, 7);
-                    if (r.status === 'pending' || (finished && recent)) active.push(r); else history.push(r);
-                });
+                list.forEach(r => { const f = r.status === 'approved' || r.status === 'out_of_stock'; const rec = isRecent(r.statusUpdatedAt || r.createdAt, 7); if (r.status === 'pending' || (f && rec)) active.push(r); else history.push(r); });
                 return { activeList: active, historyList: history };
             }, [requests, searchTerm, appUser]);
-
             const missingHistory = historyList.filter(r => r.status === 'out_of_stock');
             const deliveredHistory = historyList.filter(r => r.status === 'approved');
-
             const isCarnival = isCarnivalSeason();
 
             if (loading) return <div className="flex h-screen items-center justify-center text-slate-500">Conectando...</div>;
@@ -480,23 +502,11 @@
                 <div className={`min-h-screen pb-20 fade-in ${isCarnival ? 'theme-carnaval' : ''}`}>
                     <NoticeBanner notices={notices} userRole={appUser.role} onUpdateNotice={handleUpdateNotice} />
                     <header className={`bg-white text-slate-800 shadow-sm border-b border-slate-200 sticky top-0 z-10 ${isCarnival ? 'header-bg' : ''}`}>
-                        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
-                            <div className="flex items-center gap-4 select-none">
-                                <InstitutionalLogo />
-                                {isCarnival && <span className="bg-pink-100 text-pink-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-200 animate-pulse">🎭 CARNAVAL</span>}
-                                <div className="hidden sm:block h-8 w-px bg-slate-200"></div><div><h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1><p className="text-xs text-slate-500 uppercase">{appUser.role === 'master' ? 'Gestor do Sistema' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'logistics' ? 'Logística' : appUser.sector}</p></div></div>
-                            <div className="flex items-center gap-2"><button onClick={handleExportPDF} className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold py-2 px-3 rounded transition"><Icons.FileText /><span className="hidden sm:inline">PDF</span></button><button onClick={handleLogout} className="text-slate-400 hover:text-red-500 p-2 transition"><Icons.LogOut /></button></div>
-                        </div>
+                        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center"><div className="flex items-center gap-4 select-none"><InstitutionalLogo />{isCarnival && <span className="bg-pink-100 text-pink-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-200 animate-pulse">🎭 CARNAVAL</span>}<div className="hidden sm:block h-8 w-px bg-slate-200"></div><div><h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1><p className="text-xs text-slate-500 uppercase">{appUser.role === 'master' ? 'Gestor do Sistema' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'logistics' ? 'Logística' : appUser.sector}</p></div></div><div className="flex items-center gap-2"><button onClick={handleExportPDF} className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold py-2 px-3 rounded transition"><Icons.FileText /><span className="hidden sm:inline">PDF</span></button><button onClick={handleLogout} className="text-slate-400 hover:text-red-500 p-2 transition"><Icons.LogOut /></button></div></div>
                         <div className={`bg-blue-600 px-4 py-2 text-center text-xs sm:text-sm font-medium text-white shadow-inner flex justify-center gap-6 ${isCarnival ? 'bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600' : ''}`}><span>🧪 Lab: <span className="text-yellow-300 font-bold">{getNextMonday()}</span></span><span>📎 Escritório: <span className="text-yellow-300 font-bold">{getNextOfficeDay()}</span></span></div>
                     </header>
-
                     <main className="max-w-5xl mx-auto px-4 py-6">
-                        <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto">
-                            <button onClick={() => setView('active')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap ${view === 'active' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}>Pedidos em Aberto</button>
-                            <button onClick={() => setView('history')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'history' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.History /> Histórico</button>
-                            {(appUser.role === 'logistics' || appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('inventory')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'inventory' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Box /> Controle de Estoque</button>}
-                        </div>
-
+                        <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto"><button onClick={() => setView('active')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap ${view === 'active' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}>Pedidos em Aberto</button><button onClick={() => setView('history')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'history' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.History /> Histórico</button>{(appUser.role === 'logistics' || appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('inventory')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'inventory' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Box /> Controle de Estoque</button>}</div>
                         {view === 'active' && (
                             <>
                                 {appUser.role === 'lab_tech' && (
@@ -505,20 +515,7 @@
                                         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><div className={`${isCarnival ? 'text-pink-600' : 'text-blue-600'}`}><Icons.ClipboardList /></div> Nova Solicitação</h2>
                                         <form onSubmit={handleSubmitRequest} className="space-y-4">
                                             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                                                <div className="md:col-span-5">
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Item</label>
-                                                    <input 
-                                                        type="text" 
-                                                        value={newItem} 
-                                                        onChange={(e) => setNewItem(e.target.value)} 
-                                                        placeholder="Ex: Item..." 
-                                                        list="inventory-list" 
-                                                        className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" 
-                                                    />
-                                                    <datalist id="inventory-list">
-                                                        {inventoryNames.map((name, i) => <option key={i} value={name} />)}
-                                                    </datalist>
-                                                </div>
+                                                <div className="md:col-span-5"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Item</label><input type="text" value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="Ex: Item..." list="inventory-list" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" /><datalist id="inventory-list">{inventoryNames.map((name, i) => <option key={i} value={name} />)}</datalist></div>
                                                 <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd</label><input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" /></div>
                                                 <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Unid</label><select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none"><option value="un">Unid.</option><option value="cx">Caixa</option><option value="ml">ml</option><option value="l">Litros</option><option value="pct">Pacote</option></select></div>
                                                 <div className="md:col-span-3"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoria</label><select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none"><optgroup label="Logística"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup><optgroup label="Adm"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup></select></div>
@@ -531,7 +528,6 @@
                                 <div className="space-y-3">{activeList.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhum pedido pendente ou recente.</div> : activeList.map((req) => (<RequestCard key={req.id} req={req} role={appUser.role} onDelete={deleteRequest} onUpdateStatus={updateStatus} onOutOfStock={handleOutOfStockClick} onSaveStockInfo={handleSaveStockInfo} onApprovePartial={handleApprovePartial} onUpdateReq={handleUpdateReq} currentUser={appUser} />))}</div>
                             </>
                         )}
-
                         {view === 'history' && (
                             <div className="space-y-8 animate-in fade-in">
                                 <div className="relative w-full md:w-96 mb-4"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div><input type="text" placeholder="Buscar no histórico..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div>
@@ -539,20 +535,9 @@
                                 <div><h3 className="text-lg font-bold text-green-700 mb-3 flex items-center gap-2"><Icons.CheckCircle2 /> Itens Entregues/Disponíveis (Histórico)</h3><div className="space-y-3">{deliveredHistory.map(req => (<HistoryRow key={req.id} req={req} onMarkRestocked={handleMarkRestocked} />))}</div></div>
                             </div>
                         )}
-
                         {view === 'inventory' && <InventoryView userRole={appUser.role} currentUser={appUser} />}
                     </main>
-                    
-                    {modalOpen && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay fade-in">
-                            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm">
-                                <h3 className="text-lg font-bold text-red-600 flex items-center gap-2 mb-4"><Icons.PackageX /> Item Indisponível</h3>
-                                <p className="text-sm text-slate-600 mb-2">Informe o motivo ou previsão:</p>
-                                <textarea value={stockMessage} onChange={(e) => setStockMessage(e.target.value)} placeholder="Ex: Em processo de compra..." className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none h-24 text-sm mb-4"></textarea>
-                                <div className="flex gap-2"><button onClick={() => setModalOpen(false)} className="flex-1 py-2 border border-slate-300 rounded-lg text-slate-600 font-semibold hover:bg-slate-50">Cancelar</button><button onClick={confirmOutOfStock} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow">Confirmar</button></div>
-                            </div>
-                        </div>
-                    )}
+                    {modalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay fade-in"><div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm"><h3 className="text-lg font-bold text-red-600 flex items-center gap-2 mb-4"><Icons.PackageX /> Item Indisponível</h3><p className="text-sm text-slate-600 mb-2">Informe o motivo ou previsão:</p><textarea value={stockMessage} onChange={(e) => setStockMessage(e.target.value)} placeholder="Ex: Em processo de compra..." className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none h-24 text-sm mb-4"></textarea><div className="flex gap-2"><button onClick={() => setModalOpen(false)} className="flex-1 py-2 border border-slate-300 rounded-lg text-slate-600 font-semibold hover:bg-slate-50">Cancelar</button><button onClick={confirmOutOfStock} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow">Confirmar</button></div></div></div>)}
                 </div>
             );
         };
