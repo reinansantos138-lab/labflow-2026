@@ -91,7 +91,7 @@
             'consumivel_adm': '🗑️ Consumível (Adm)'
         };
 
-        // Labels Limpos para PDF (Sem emojis para evitar erro de encoding)
+        // Labels Limpos para PDF (Sem emojis)
         const CAT_LABELS_CLEAN = {
             'reagente': 'Reagente',
             'materiais': 'Materiais',
@@ -198,7 +198,7 @@
             });
         };
 
-        // --- COMPONENTES (ORDEM CORRIGIDA) ---
+        // --- COMPONENTES (ORDENADOS) ---
 
         const LoginScreen = ({ onLogin }) => {
             const [name, setName] = React.useState('');
@@ -307,8 +307,8 @@
                                     {req.status === 'pending' ? (
                                         !showPartialInput ? (
                                             <>
-                                                <button onClick={() => handleStatusAction('approved')} className="bg-green-100 text-green-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-green-200 flex items-center justify-center gap-2" title="Entregar Total"><Icons.CheckCircle2 /> TOTAL</button>
-                                                <button onClick={() => setShowPartialInput(true)} className="bg-orange-100 text-orange-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-orange-200 flex items-center justify-center gap-2" title="Entregar Parcial"><Icons.Scissors /> PARCIAL</button>
+                                                <button onClick={() => handleStatusAction('approved')} className="bg-green-100 text-green-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-green-200 flex items-center justify-center gap-2" title="Entregar Total (Baixa Estoque)"><Icons.CheckCircle2 /> TOTAL</button>
+                                                <button onClick={() => setShowPartialInput(true)} className="bg-orange-100 text-orange-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-orange-200 flex items-center justify-center gap-2" title="Entregar Parcial (Baixa Estoque)"><Icons.Scissors /> PARCIAL</button>
                                                 <button onClick={() => onOutOfStock(req.id)} className="bg-red-100 text-red-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-red-200 flex items-center justify-center gap-2"><Icons.PackageX /> EM FALTA</button>
                                             </>
                                         ) : (
@@ -419,7 +419,7 @@
                                 <input className="p-2 border rounded" placeholder="Nome do Item" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
                                 <select className="p-2 border rounded" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}><optgroup label="Logística"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup><optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup></select>
                                 <input className="p-2 border rounded" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
-                                <select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select>
+                                <select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select>
                                 <div className="md:col-span-4 grid grid-cols-3 gap-4">
                                     <input type="number" className="p-2 border rounded" placeholder="Qtd Atual" value={newItem.currentQty} onChange={e => setNewItem({...newItem, currentQty: e.target.value})} />
                                     <input type="number" className="p-2 border rounded" placeholder="Estoque Mínimo" value={newItem.minQty} onChange={e => setNewItem({...newItem, minQty: e.target.value})} />
@@ -488,14 +488,32 @@
             // --- NOVA FUNÇÃO: ARQUIVAR CICLO MANUAL (ADM) ---
             const handleArchiveCycle = async () => {
                 if (!confirm("Isso moverá todos os itens 'Disponível' ou 'Em Falta' da Administração para o histórico. Confirmar?")) return;
-                const itemsToArchive = requests.filter(r => (r.status === 'approved' || r.status === 'out_of_stock') && !r.isArchived && CAT_GROUPS.admin.includes(r.category));
+                
+                // Filtra apenas itens finalizados de ADM que ainda não estão arquivados
+                const itemsToArchive = requests.filter(r => 
+                    (r.status === 'approved' || r.status === 'out_of_stock') && 
+                    !r.isArchived &&
+                    CAT_GROUPS.admin.includes(r.category)
+                );
+
                 if (itemsToArchive.length === 0) return alert("Nenhum item pronto para arquivar.");
+
                 const batch = writeBatch(db);
-                itemsToArchive.forEach(req => { const ref = doc(db, 'solicitacoes_lab_2026', req.id); batch.update(ref, { isArchived: true }); });
-                try { await batch.commit(); alert(`${itemsToArchive.length} itens movidos para o histórico.`); } catch(e) { console.error(e); alert("Erro ao arquivar."); }
+                itemsToArchive.forEach(req => {
+                    const ref = doc(db, 'solicitacoes_lab_2026', req.id);
+                    batch.update(ref, { isArchived: true });
+                });
+
+                try {
+                    await batch.commit();
+                    alert(`${itemsToArchive.length} itens movidos para o histórico.`);
+                } catch(e) {
+                    console.error(e);
+                    alert("Erro ao arquivar.");
+                }
             };
 
-            // FIX: PDF Export Cleaning Emojis & Portuguese Status
+            // FIX: PDF Export Cleaning Emojis
             const handleExportPDF = () => {
                 const d7 = new Date(); d7.setDate(d7.getDate() - 7);
                 let data = requests.filter(r => new Date(r.createdAt) > d7);
@@ -504,6 +522,19 @@
                 else if (appUser.role === 'admin') data = data.filter(r => CAT_GROUPS.admin.includes(r.category));
                 if (!data.length) return alert("Nada para exportar.");
                 
+                // ORDENAÇÃO POR SETOR
+                const priorityOrder = ['QGI', 'MIC', 'ESP', 'FQA'];
+                data.sort((a, b) => {
+                    const sectorA = a.requesterSector || 'OUTROS';
+                    const sectorB = b.requesterSector || 'OUTROS';
+                    const idxA = priorityOrder.indexOf(sectorA);
+                    const idxB = priorityOrder.indexOf(sectorB);
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    if (idxA !== -1) return -1;
+                    if (idxB !== -1) return 1;
+                    return sectorA.localeCompare(sectorB);
+                });
+
                 const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4');
                 doc.setFontSize(18); doc.text("Relatório Semanal - LabFlow 2026", 14, 22);
                 doc.setFontSize(10); doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 28);
@@ -513,9 +544,10 @@
                     head: [["Data", "Cód", "Item", "Local", "Qtd", "Cat", "Solicitante", "Status"]], 
                     body: data.map(r => {
                         const rawLabel = CAT_LABELS[r.category] || r.category;
-                        // Clean Label (Text only, no emoji)
-                        const cleanLabel = CAT_LABELS_CLEAN[r.category] || r.category;
-                        // Status Translation
+                        // Regex para remover emojis
+                        const cleanLabel = rawLabel.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
+                        
+                        // Translate Status
                         let statusPT = 'Pendente';
                         if (r.status === 'approved') statusPT = 'Disponível';
                         if (r.status === 'out_of_stock') statusPT = 'Em Falta';
@@ -544,9 +576,13 @@
                 
                 const active = [], history = [];
                 list.forEach(r => {
-                    if (r.isArchived) { history.push(r); } else {
+                    if (r.isArchived) {
+                        history.push(r);
+                    } else {
                         const finished = r.status === 'approved' || r.status === 'out_of_stock';
-                        if (CAT_GROUPS.admin.includes(r.category)) { active.push(r); } else {
+                        if (CAT_GROUPS.admin.includes(r.category)) {
+                             active.push(r); 
+                        } else {
                             const recent = isRecent(r.statusUpdatedAt || r.createdAt, 7);
                             if (r.status === 'pending' || (finished && recent)) active.push(r); else history.push(r);
                         }
