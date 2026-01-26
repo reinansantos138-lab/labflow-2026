@@ -80,6 +80,7 @@
             admin: ['epi', 'escritorio', 'consumivel_adm']
         };
 
+        // Labels com Ícones para a Interface Web
         const CAT_LABELS = {
             'reagente': '🧪 Reagente',
             'materiais': '📦 Materiais',
@@ -88,6 +89,17 @@
             'epi': '🥽 EPI',
             'escritorio': '📎 Escritório',
             'consumivel_adm': '🗑️ Consumível (Adm)'
+        };
+
+        // Labels Limpos para PDF (Sem emojis para evitar erro de encoding)
+        const CAT_LABELS_CLEAN = {
+            'reagente': 'Reagente',
+            'materiais': 'Materiais',
+            'consumivel_log': 'Consumivel (Lab)',
+            'consumivel': 'Consumivel (Antigo)',
+            'epi': 'EPI',
+            'escritorio': 'Escritorio',
+            'consumivel_adm': 'Consumivel (Adm)'
         };
 
         const InstitutionalLogo = () => (
@@ -407,7 +419,7 @@
                                 <input className="p-2 border rounded" placeholder="Nome do Item" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
                                 <select className="p-2 border rounded" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}><optgroup label="Logística"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup><optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup></select>
                                 <input className="p-2 border rounded" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
-                                <select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select>
+                                <select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select>
                                 <div className="md:col-span-4 grid grid-cols-3 gap-4">
                                     <input type="number" className="p-2 border rounded" placeholder="Qtd Atual" value={newItem.currentQty} onChange={e => setNewItem({...newItem, currentQty: e.target.value})} />
                                     <input type="number" className="p-2 border rounded" placeholder="Estoque Mínimo" value={newItem.minQty} onChange={e => setNewItem({...newItem, minQty: e.target.value})} />
@@ -472,19 +484,6 @@
             const confirmOutOfStock = async () => { if (!selectedReqId) return; await updateDoc(doc(db, 'solicitacoes_lab_2026', selectedReqId), { status: 'out_of_stock', statusUpdatedAt: new Date().toISOString(), logisticsMessage: stockMessage || '' }); setModalOpen(false); };
             const updateStatus = async (id, s) => { const d = { status: s, statusUpdatedAt: new Date().toISOString() }; if (s === 'approved' || s === 'pending') d.logisticsMessage = ''; await updateDoc(doc(db, 'solicitacoes_lab_2026', id), d); };
             const deleteRequest = async (id) => { if (confirm('Excluir?')) await deleteDoc(doc(db, 'solicitacoes_lab_2026', id)); };
-            const handleExportPDF = () => {
-                const d7 = new Date(); d7.setDate(d7.getDate() - 7);
-                let data = requests.filter(r => new Date(r.createdAt) > d7);
-                if (appUser.role === 'lab_tech') data = data.filter(r => r.requesterSector === appUser.sector);
-                else if (appUser.role === 'logistics') data = data.filter(r => CAT_GROUPS.logistics.includes(r.category));
-                else if (appUser.role === 'admin') data = data.filter(r => CAT_GROUPS.admin.includes(r.category));
-                if (!data.length) return alert("Nada para exportar.");
-                const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4');
-                doc.setFontSize(18); doc.text("Relatório Semanal - LabFlow 2026", 14, 22);
-                doc.setFontSize(10); doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 28);
-                doc.autoTable({ head: [["Data", "Cód", "Item", "Local", "Qtd", "Cat", "Solicitante", "Status"]], body: data.map(r => [new Date(r.createdAt).toLocaleDateString('pt-BR'), r.itemCode||'-', r.item, r.storageLocation||'-', `${r.quantity} ${r.unit}`, CAT_LABELS[r.category]||r.category, `${r.requesterName} (${r.requesterSector})`, r.status]), startY: 40 });
-                doc.save('relatorio.pdf');
-            };
             
             // --- NOVA FUNÇÃO: ARQUIVAR CICLO MANUAL (ADM) ---
             const handleArchiveCycle = async () => {
@@ -494,6 +493,47 @@
                 const batch = writeBatch(db);
                 itemsToArchive.forEach(req => { const ref = doc(db, 'solicitacoes_lab_2026', req.id); batch.update(ref, { isArchived: true }); });
                 try { await batch.commit(); alert(`${itemsToArchive.length} itens movidos para o histórico.`); } catch(e) { console.error(e); alert("Erro ao arquivar."); }
+            };
+
+            // FIX: PDF Export Cleaning Emojis & Portuguese Status
+            const handleExportPDF = () => {
+                const d7 = new Date(); d7.setDate(d7.getDate() - 7);
+                let data = requests.filter(r => new Date(r.createdAt) > d7);
+                if (appUser.role === 'lab_tech') data = data.filter(r => r.requesterSector === appUser.sector);
+                else if (appUser.role === 'logistics') data = data.filter(r => CAT_GROUPS.logistics.includes(r.category));
+                else if (appUser.role === 'admin') data = data.filter(r => CAT_GROUPS.admin.includes(r.category));
+                if (!data.length) return alert("Nada para exportar.");
+                
+                const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4');
+                doc.setFontSize(18); doc.text("Relatório Semanal - LabFlow 2026", 14, 22);
+                doc.setFontSize(10); doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 28);
+                doc.text(`Perfil: ${appUser.role === 'logistics' ? 'Logística' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'master' ? 'Gestor do Sistema' : appUser.sector}`, 14, 33);
+                
+                doc.autoTable({ 
+                    head: [["Data", "Cód", "Item", "Local", "Qtd", "Cat", "Solicitante", "Status"]], 
+                    body: data.map(r => {
+                        const rawLabel = CAT_LABELS[r.category] || r.category;
+                        // Clean Label (Text only, no emoji)
+                        const cleanLabel = CAT_LABELS_CLEAN[r.category] || r.category;
+                        // Status Translation
+                        let statusPT = 'Pendente';
+                        if (r.status === 'approved') statusPT = 'Disponível';
+                        if (r.status === 'out_of_stock') statusPT = 'Em Falta';
+
+                        return [
+                            new Date(r.createdAt).toLocaleDateString('pt-BR'), 
+                            r.itemCode||'-', 
+                            r.item, 
+                            r.storageLocation||'-', 
+                            `${r.quantity} ${r.unit}`, 
+                            cleanLabel, 
+                            `${r.requesterName} (${r.requesterSector})`, 
+                            statusPT
+                        ];
+                    }), 
+                    startY: 40 
+                });
+                doc.save('relatorio.pdf');
             };
 
             const { activeList, historyList } = React.useMemo(() => {
