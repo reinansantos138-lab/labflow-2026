@@ -199,6 +199,8 @@
             });
         };
 
+        // --- COMPONENTES ---
+
         const LoginScreen = ({ onLogin }) => {
             const [name, setName] = React.useState('');
             const [role, setRole] = React.useState('lab_tech');
@@ -251,7 +253,7 @@
             const getStatusColor = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'bg-red-100 text-red-700 border-red-200'; if (cur >= minimum && cur <= minimum * 1.2) return 'bg-yellow-100 text-yellow-800 border-yellow-200'; return 'bg-green-100 text-green-700 border-green-200'; };
             const getStatusLabel = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'Crítico'; if (cur >= minimum && cur <= minimum * 1.2) return 'Atenção'; return 'OK'; };
 
-            if (isEditing) return (<div className="bg-white p-4 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden"><div className="flex flex-col gap-2"><input className="p-1.5 border rounded text-sm font-bold" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Nome" /><select className="p-1.5 border rounded text-xs" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})}><optgroup label="Logística"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup><optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup></select><input className="p-1.5 border rounded text-xs" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} placeholder="Local" /><div className="grid grid-cols-3 gap-1"><input type="number" className="p-1.5 border rounded text-xs" value={editData.currentQty} onChange={e => setEditData({...editData, currentQty: e.target.value})} placeholder="Qtd" /><input type="number" className="p-1.5 border rounded text-xs" value={editData.minQty} onChange={e => setEditData({...editData, minQty: e.target.value})} placeholder="Min" /><select className="p-1.5 border rounded text-xs" value={editData.unit} onChange={e => setEditData({...editData, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select></div><div className="flex justify-end gap-2 mt-2"><button onClick={handleCancel} className="text-xs text-slate-500 hover:underline">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">Salvar</button></div></div></div>);
+            if (isEditing) return (<div className="bg-white p-4 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden"><div className="flex flex-col gap-2"><input className="p-1.5 border rounded text-sm font-bold" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Nome" /><select className="p-1.5 border rounded text-xs" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})}><optgroup label="Adm (Cicilha)"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup><optgroup label="Logística (Alex)"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup></select><input className="p-1.5 border rounded text-xs" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} placeholder="Local" /><div className="grid grid-cols-3 gap-1"><input type="number" className="p-1.5 border rounded text-xs" value={editData.currentQty} onChange={e => setEditData({...editData, currentQty: e.target.value})} placeholder="Qtd" /><input type="number" className="p-1.5 border rounded text-xs" value={editData.minQty} onChange={e => setEditData({...editData, minQty: e.target.value})} placeholder="Min" /><select className="p-1.5 border rounded text-xs" value={editData.unit} onChange={e => setEditData({...editData, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select></div><div className="flex justify-end gap-2 mt-2"><button onClick={handleCancel} className="text-xs text-slate-500 hover:underline">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">Salvar</button></div></div></div>);
             
             return (
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
@@ -289,7 +291,7 @@
             return (
                 <div className={`bg-white rounded-lg shadow-sm border p-4 transition-all ${req.status === 'pending' ? 'border-l-4 border-l-yellow-400' : req.status === 'approved' ? 'border-l-4 border-l-green-500 bg-green-50/10' : 'border-l-4 border-l-red-500 opacity-75'}`}>
                     {isEditingReq ? (
-                        <div className="flex flex-col gap-3 bg-blue-50/50 p-2 rounded"><h4 className="text-xs font-bold text-blue-800 uppercase">Editando Pedido (Gestor)</h4><div className="grid grid-cols-2 gap-2"><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Item</label><input className="p-2 border rounded text-sm w-full" value={editItem} onChange={e => setEditItem(e.target.value)} /></div><div><label className="text-[10px] font-bold text-blue-800 uppercase">Categoria</label><select className="p-2 border rounded text-sm w-full" value={editCategory} onChange={e => setEditCategory(e.target.value)}><optgroup label="Logística"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup><optgroup label="Adm"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup></select></div><div className="flex gap-1"><div className="flex-1"><label className="text-[10px] font-bold text-blue-800 uppercase">Qtd</label><input className="p-2 border rounded text-sm w-full" type="number" value={editQty} onChange={e => setEditQty(e.target.value)} /></div><div className="w-20"><label className="text-[10px] font-bold text-blue-800 uppercase">Un</label><select className="p-2 border rounded text-sm w-full" value={editUnit} onChange={e => setEditUnit(e.target.value)}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="pct">pct</option></select></div></div><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Setor Solicitante</label><select className="p-2 border rounded text-sm w-full" value={editSector} onChange={e => setEditSector(e.target.value)}>{SETORES.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div><div className="flex justify-end gap-2"><button onClick={() => setIsEditingReq(false)} className="px-3 py-1 bg-white border rounded text-xs">Cancelar</button><button onClick={handleSaveEditReq} className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold">Salvar Alterações</button></div></div>
+                        <div className="flex flex-col gap-3 bg-blue-50/50 p-2 rounded"><h4 className="text-xs font-bold text-blue-800 uppercase">Editando Pedido (Gestor)</h4><div className="grid grid-cols-2 gap-2"><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Item</label><input className="p-2 border rounded text-sm w-full" value={editItem} onChange={e => setEditItem(e.target.value)} /></div><div><label className="text-[10px] font-bold text-blue-800 uppercase">Categoria</label><select className="p-2 border rounded text-sm w-full" value={editCategory} onChange={e => setEditCategory(e.target.value)}><optgroup label="Adm (Cicilha)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup><optgroup label="Logística (Alex)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup></select></div><div className="flex gap-1"><div className="flex-1"><label className="text-[10px] font-bold text-blue-800 uppercase">Qtd</label><input className="p-2 border rounded text-sm w-full" type="number" value={editQty} onChange={e => setEditQty(e.target.value)} /></div><div className="w-20"><label className="text-[10px] font-bold text-blue-800 uppercase">Un</label><select className="p-2 border rounded text-sm w-full" value={editUnit} onChange={e => setEditUnit(e.target.value)}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="pct">pct</option></select></div></div><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Setor Solicitante</label><select className="p-2 border rounded text-sm w-full" value={editSector} onChange={e => setEditSector(e.target.value)}>{SETORES.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div><div className="flex justify-end gap-2"><button onClick={() => setIsEditingReq(false)} className="px-3 py-1 bg-white border rounded text-xs">Cancelar</button><button onClick={handleSaveEditReq} className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold">Salvar Alterações</button></div></div>
                     ) : (
                         <div className="flex flex-col md:flex-row justify-between gap-4">
                             <div className="flex-1">
@@ -306,8 +308,8 @@
                                     {req.status === 'pending' ? (
                                         !showPartialInput ? (
                                             <>
-                                                <button onClick={() => handleStatusAction('approved')} className="bg-green-100 text-green-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-green-200 flex items-center justify-center gap-2" title="Entregar Total"><Icons.CheckCircle2 /> TOTAL</button>
-                                                <button onClick={() => setShowPartialInput(true)} className="bg-orange-100 text-orange-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-orange-200 flex items-center justify-center gap-2" title="Entregar Parcial"><Icons.Scissors /> PARCIAL</button>
+                                                <button onClick={() => handleStatusAction('approved')} className="bg-green-100 text-green-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-green-200 flex items-center justify-center gap-2" title="Entregar Total (Baixa Estoque)"><Icons.CheckCircle2 /> TOTAL</button>
+                                                <button onClick={() => setShowPartialInput(true)} className="bg-orange-100 text-orange-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-orange-200 flex items-center justify-center gap-2" title="Entregar Parcial (Baixa Estoque)"><Icons.Scissors /> PARCIAL</button>
                                                 <button onClick={() => onOutOfStock(req.id)} className="bg-red-100 text-red-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-red-200 flex items-center justify-center gap-2"><Icons.PackageX /> EM FALTA</button>
                                             </>
                                         ) : (
@@ -473,8 +475,8 @@
                                 <input className="p-2 border rounded" placeholder="Nome do Item" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
                                 <select className="p-2 border rounded" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
                                     {/* SE FOR ADMIN, SÓ MOSTRA CATEGORIAS DE ADM. SE MASTER, MOSTRA TUDO */}
-                                    {userRole === 'master' && <optgroup label="Logística (Opcional)"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>}
-                                    <optgroup label="Administração"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup>
+                                    {userRole === 'master' && <optgroup label="Logística (Alex)"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>}
+                                    <optgroup label="Adm (Cicilha)"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup>
                                 </select>
                                 <input className="p-2 border rounded" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
                                 <select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select>
@@ -542,6 +544,36 @@
             const confirmOutOfStock = async () => { if (!selectedReqId) return; await updateDoc(doc(db, 'solicitacoes_lab_2026', selectedReqId), { status: 'out_of_stock', statusUpdatedAt: new Date().toISOString(), logisticsMessage: stockMessage || '' }); setModalOpen(false); };
             const updateStatus = async (id, s) => { const d = { status: s, statusUpdatedAt: new Date().toISOString() }; if (s === 'approved' || s === 'pending') d.logisticsMessage = ''; await updateDoc(doc(db, 'solicitacoes_lab_2026', id), d); };
             const deleteRequest = async (id) => { if (confirm('Excluir?')) await deleteDoc(doc(db, 'solicitacoes_lab_2026', id)); };
+            
+            // --- NOVA FUNÇÃO: ARQUIVAR CICLO MANUAL (ADM) ---
+            const handleArchiveCycle = async () => {
+                if (!confirm("Isso moverá todos os itens 'Disponível' ou 'Em Falta' da Administração para o histórico. Confirmar?")) return;
+                
+                // Filtra apenas itens finalizados de ADM que ainda não estão arquivados
+                const itemsToArchive = requests.filter(r => 
+                    (r.status === 'approved' || r.status === 'out_of_stock') && 
+                    !r.isArchived &&
+                    CAT_GROUPS.admin.includes(r.category)
+                );
+
+                if (itemsToArchive.length === 0) return alert("Nenhum item pronto para arquivar.");
+
+                const batch = writeBatch(db);
+                itemsToArchive.forEach(req => {
+                    const ref = doc(db, 'solicitacoes_lab_2026', req.id);
+                    batch.update(ref, { isArchived: true });
+                });
+
+                try {
+                    await batch.commit();
+                    alert(`${itemsToArchive.length} itens movidos para o histórico.`);
+                } catch(e) {
+                    console.error(e);
+                    alert("Erro ao arquivar.");
+                }
+            };
+
+            // FIX: PDF Export Cleaning Emojis
             const handleExportPDF = () => {
                 const d7 = new Date(); d7.setDate(d7.getDate() - 7);
                 let data = requests.filter(r => new Date(r.createdAt) > d7);
@@ -567,28 +599,33 @@
                 doc.setFontSize(18); doc.text("Relatório Semanal - LabFlow 2026", 14, 22);
                 doc.setFontSize(10); doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 28);
                 doc.text(`Perfil: ${appUser.role === 'logistics' ? 'Logística' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'master' ? 'Gestor do Sistema' : appUser.sector}`, 14, 33);
+                
                 doc.autoTable({ 
                     head: [["Data", "Cód", "Item", "Local", "Qtd", "Cat", "Solicitante", "Status"]], 
                     body: data.map(r => {
                         const rawLabel = CAT_LABELS[r.category] || r.category;
-                        const cleanLabel = CAT_LABELS_CLEAN[r.category] || r.category;
+                        // Regex para remover emojis
+                        const cleanLabel = rawLabel.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
+                        
+                        // Translate Status
                         let statusPT = 'Pendente';
                         if (r.status === 'approved') statusPT = 'Disponível';
                         if (r.status === 'out_of_stock') statusPT = 'Em Falta';
-                        return [new Date(r.createdAt).toLocaleDateString('pt-BR'), r.itemCode||'-', r.item, r.storageLocation||'-', `${r.quantity} ${r.unit}`, cleanLabel, `${r.requesterName} (${r.requesterSector})`, statusPT];
+
+                        return [
+                            new Date(r.createdAt).toLocaleDateString('pt-BR'), 
+                            r.itemCode||'-', 
+                            r.item, 
+                            r.storageLocation||'-', 
+                            `${r.quantity} ${r.unit}`, 
+                            cleanLabel, 
+                            `${r.requesterName} (${r.requesterSector})`, 
+                            statusPT
+                        ];
                     }), 
                     startY: 40 
                 });
                 doc.save('relatorio.pdf');
-            };
-            
-            const handleArchiveCycle = async () => {
-                if (!confirm("Isso moverá todos os itens 'Disponível' ou 'Em Falta' da Administração para o histórico. Confirmar?")) return;
-                const itemsToArchive = requests.filter(r => (r.status === 'approved' || r.status === 'out_of_stock') && !r.isArchived && CAT_GROUPS.admin.includes(r.category));
-                if (itemsToArchive.length === 0) return alert("Nenhum item pronto para arquivar.");
-                const batch = writeBatch(db);
-                itemsToArchive.forEach(req => { const ref = doc(db, 'solicitacoes_lab_2026', req.id); batch.update(ref, { isArchived: true }); });
-                try { await batch.commit(); alert(`${itemsToArchive.length} itens movidos para o histórico.`); } catch(e) { console.error(e); alert("Erro ao arquivar."); }
             };
 
             const { activeList, historyList } = React.useMemo(() => {
@@ -596,11 +633,16 @@
                 let list = requests.filter(r => r.item.toLowerCase().includes(searchTerm.toLowerCase()) || r.requesterName.toLowerCase().includes(searchTerm.toLowerCase()));
                 if (appUser.role === 'logistics') list = list.filter(r => CAT_GROUPS.logistics.includes(r.category));
                 if (appUser.role === 'admin') list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
+                
                 const active = [], history = [];
                 list.forEach(r => {
-                    if (r.isArchived) { history.push(r); } else {
+                    if (r.isArchived) {
+                        history.push(r);
+                    } else {
                         const finished = r.status === 'approved' || r.status === 'out_of_stock';
-                        if (CAT_GROUPS.admin.includes(r.category)) { active.push(r); } else {
+                        if (CAT_GROUPS.admin.includes(r.category)) {
+                             active.push(r); 
+                        } else {
                             const recent = isRecent(r.statusUpdatedAt || r.createdAt, 7);
                             if (r.status === 'pending' || (finished && recent)) active.push(r); else history.push(r);
                         }
@@ -636,13 +678,21 @@
                                                 <div className="md:col-span-5"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Item</label><input type="text" value={newItem} onChange={(e) => setNewItem(e.target.value)} placeholder="Ex: Item..." list="inventory-list" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" /><datalist id="inventory-list">{inventoryNames.map((name, i) => <option key={i} value={name} />)}</datalist></div>
                                                 <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd</label><input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" /></div>
                                                 <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Unid</label><select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none"><option value="un">Unid.</option><option value="cx">Caixa</option><option value="ml">ml</option><option value="L">L</option><option value="pct">Pacote</option></select></div>
-                                                <div className="md:col-span-3"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoria</label><select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none"><optgroup label="Logística"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup><optgroup label="Adm"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup></select></div>
+                                                <div className="md:col-span-3"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoria</label><select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none"><optgroup label="Logística (Alex)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup><optgroup label="Adm (Cicilha)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup></select></div>
                                             </div>
                                             <div className="flex flex-col md:flex-row gap-4 items-center"><input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações..." className="flex-1 w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm outline-none" /><div className="flex items-center gap-3 w-full md:w-auto"><label className="flex items-center gap-2 cursor-pointer bg-red-50 text-red-700 px-3 py-2.5 rounded-lg border border-red-100 hover:bg-red-100 transition whitespace-nowrap"><input type="checkbox" checked={isUrgent} onChange={(e) => setIsUrgent(e.target.checked)} className="w-4 h-4 text-red-600 rounded" /><span className="font-semibold text-sm">Urgente</span></label><button type="submit" className={`flex-1 text-white px-6 py-2.5 rounded-lg font-bold shadow-md transition whitespace-nowrap ${isCarnival ? 'btn-primary' : 'bg-blue-600 hover:bg-blue-700'}`}>Adicionar</button></div></div>
                                         </form>
                                     </div>
                                 )}
-                                <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6"><div className="relative w-full md:w-96"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div><input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div><div className="flex items-center gap-4"><div className="text-sm font-medium text-slate-600 bg-slate-200 px-3 py-1 rounded-full">Exibindo: {activeList.length}</div>{(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={handleArchiveCycle} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded shadow flex items-center gap-2 animate-in fade-in"><Icons.Archive /> Fechar Ciclo</button>}</div></div>
+                                <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6"><div className="relative w-full md:w-96"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div><input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-sm font-medium text-slate-600 bg-slate-200 px-3 py-1 rounded-full">Exibindo: {activeList.length}</div>
+                                        {/* BOTÃO MANUAL DE ARQUIVAR (SÓ ADM/MASTER) */}
+                                        {(appUser.role === 'admin' || appUser.role === 'master') && (
+                                            <button onClick={handleArchiveCycle} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded shadow flex items-center gap-2 animate-in fade-in"><Icons.Archive /> Fechar Ciclo</button>
+                                        )}
+                                    </div>
+                                </div>
                                 <div className="space-y-3">{activeList.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhum pedido pendente ou recente.</div> : activeList.map((req) => (<RequestCard key={req.id} req={req} role={appUser.role} onDelete={deleteRequest} onUpdateStatus={updateStatus} onOutOfStock={handleOutOfStockClick} onSaveStockInfo={handleSaveStockInfo} onApprovePartial={handleApprovePartial} onUpdateReq={handleUpdateReq} currentUser={appUser} />))}</div>
                             </>
                         )}
