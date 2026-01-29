@@ -292,7 +292,7 @@
                         <div className="flex flex-col md:flex-row justify-between gap-4">
                             <div className="flex-1">
                                 <div className="flex items-center flex-wrap gap-2 mb-2"><span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${badgeColor}`}>{CAT_LABELS[req.category] || req.category}</span>{req.isUrgent && <span className="flex items-center gap-1 text-[10px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded border border-red-200"><Icons.AlertCircle /> URGENTE</span>}<span className="text-xs text-slate-400 flex items-center gap-1 ml-auto md:ml-0"><Icons.Clock /> {formatDate(req.createdAt)}</span></div>
-                                <div className="flex items-center gap-2"><div><h3 className="text-lg font-bold text-slate-800 leading-tight">{req.item}</h3><div className="text-sm font-medium text-slate-500 mt-1">Qtd: {req.quantity} {req.unit}</div></div>{role === 'master' && <button onClick={() => setIsEditingReq(true)} className="text-slate-300 hover:text-blue-500 p-1"><Icons.Edit /></button>}</div>
+                                <div className="flex items-center gap-2"><div><h3 className="text-lg font-bold text-slate-800 leading-tight">{req.item}</h3><div className="text-sm font-medium text-slate-500 mt-1">Qtd: {req.quantity} {req.unit}</div></div>{(role === 'master' || role === 'logistics' || role === 'admin') && <button onClick={() => setIsEditingReq(true)} className="text-slate-300 hover:text-blue-500 p-1"><Icons.Edit /></button>}</div>
                                 {role !== 'lab_tech' && (<div className="mt-3 flex gap-2 items-end"><div className="flex-1 max-w-[120px]"><label className="text-[10px] font-bold text-slate-400 uppercase">Cód.</label><input type="text" value={itemCode} onChange={(e) => { setItemCode(e.target.value); setHasChanges(true); }} placeholder="0000" className="w-full text-xs p-1.5 border border-slate-300 rounded outline-none"/></div><div className="flex-1 max-w-[120px]"><label className="text-[10px] font-bold text-slate-400 uppercase">Local</label><input type="text" value={storageLocation} onChange={(e) => { setStorageLocation(e.target.value); setHasChanges(true); }} placeholder="A1" className="w-full text-xs p-1.5 border border-slate-300 rounded outline-none"/></div>{hasChanges && <button onClick={handleSaveInfo} title="Salvar" className="mb-[1px] p-1.5 bg-blue-100 text-blue-600 rounded"><Icons.Save /></button>}</div>)}
                                 {role === 'lab_tech' && (req.itemCode || req.storageLocation) && (<div className="mt-2 text-xs text-slate-500 flex gap-3">{req.itemCode && <span><strong>Cód:</strong> {req.itemCode}</span>}{req.storageLocation && <span><strong>Local:</strong> {req.storageLocation}</span>}</div>)}
                                 <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap items-center gap-3 text-sm text-slate-600"><div className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded"><Icons.User /> <span className="font-semibold">{req.requesterName}</span><span className="text-slate-300">|</span><span className="text-blue-600 font-bold text-xs">{req.requesterSector || 'N/A'}</span></div>{req.notes && <span className="italic text-slate-400 text-xs">Obs: {req.notes}</span>}</div>
@@ -509,9 +509,8 @@
             const [notices, setNotices] = React.useState({ logistics: '', admin: '' });
             const [loading, setLoading] = React.useState(true);
             const [view, setView] = React.useState('active'); 
-            const [inventoryMap, setInventoryMap] = React.useState({}); // Stores full item data
-            const [inventoryNames, setInventoryNames] = React.useState([]); // Stores just names for datalist
-            
+            const [inventoryNames, setInventoryNames] = React.useState([]);
+            const [inventoryMap, setInventoryMap] = React.useState({});
             const [newItem, setNewItem] = React.useState('');
             const [quantity, setQuantity] = React.useState('');
             const [unit, setUnit] = React.useState('un');
@@ -529,7 +528,7 @@
             React.useEffect(() => { if (appUser && (newItem || quantity || notes)) { localStorage.setItem('labflow_draft_v1', JSON.stringify({ item: newItem, quantity, unit, category, notes, isUrgent })); setDraftSaved(true); setTimeout(() => setDraftSaved(false), 2000); } }, [newItem, quantity, unit, category, notes, isUrgent, appUser]);
             React.useEffect(() => { if (!user) return; onSnapshot(query(collection(db, 'solicitacoes_lab_2026'), orderBy('createdAt', 'desc')), s => setRequests(s.docs.filter(d => d.id !== 'NOTICES_CONFIG').map(d => ({ id: d.id, ...d.data() })))); }, [user]);
             
-            // Modified Inventory Fetch for Auto-fill
+            // --- AUTOFILL INVENTORY FETCH ---
             React.useEffect(() => { 
                 if (!user) return; 
                 const q = query(collection(db, 'estoque_lab_2026'), orderBy('name')); 
@@ -550,6 +549,7 @@
             const handleItemChange = (e) => {
                 const val = e.target.value;
                 setNewItem(val);
+                // Lógica de Auto-fill
                 const match = inventoryMap[val.trim().toLowerCase()];
                 if (match) {
                     setCategory(match.category);
@@ -569,6 +569,19 @@
             const confirmOutOfStock = async () => { if (!selectedReqId) return; await updateDoc(doc(db, 'solicitacoes_lab_2026', selectedReqId), { status: 'out_of_stock', statusUpdatedAt: new Date().toISOString(), logisticsMessage: stockMessage || '' }); setModalOpen(false); };
             const updateStatus = async (id, s) => { const d = { status: s, statusUpdatedAt: new Date().toISOString() }; if (s === 'approved' || s === 'pending') d.logisticsMessage = ''; await updateDoc(doc(db, 'solicitacoes_lab_2026', id), d); };
             const deleteRequest = async (id) => { if (confirm('Excluir?')) await deleteDoc(doc(db, 'solicitacoes_lab_2026', id)); };
+            const handleExportPDF = () => {
+                const d7 = new Date(); d7.setDate(d7.getDate() - 7);
+                let data = requests.filter(r => new Date(r.createdAt) > d7);
+                if (appUser.role === 'lab_tech') data = data.filter(r => r.requesterSector === appUser.sector);
+                else if (appUser.role === 'logistics') data = data.filter(r => CAT_GROUPS.logistics.includes(r.category));
+                else if (appUser.role === 'admin') data = data.filter(r => CAT_GROUPS.admin.includes(r.category));
+                if (!data.length) return alert("Nada para exportar.");
+                const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4');
+                doc.setFontSize(18); doc.text("Relatório Semanal - LabFlow 2026", 14, 22);
+                doc.setFontSize(10); doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 28);
+                doc.autoTable({ head: [["Data", "Cód", "Item", "Local", "Qtd", "Cat", "Solicitante", "Status"]], body: data.map(r => [new Date(r.createdAt).toLocaleDateString('pt-BR'), r.itemCode||'-', r.item, r.storageLocation||'-', `${r.quantity} ${r.unit}`, CAT_LABELS[r.category]||r.category, `${r.requesterName} (${r.requesterSector})`, r.status]), startY: 40 });
+                doc.save('relatorio.pdf');
+            };
             
             // --- NOVA FUNÇÃO: ARQUIVAR CICLO MANUAL (ADM) ---
             const handleArchiveCycle = async () => {
@@ -580,61 +593,6 @@
                 try { await batch.commit(); alert(`${itemsToArchive.length} itens movidos para o histórico.`); } catch(e) { console.error(e); alert("Erro ao arquivar."); }
             };
 
-            // FIX: PDF Export Cleaning Emojis
-            const handleExportPDF = () => {
-                const d7 = new Date(); d7.setDate(d7.getDate() - 7);
-                let data = requests.filter(r => new Date(r.createdAt) > d7);
-                if (appUser.role === 'lab_tech') data = data.filter(r => r.requesterSector === appUser.sector);
-                else if (appUser.role === 'logistics') data = data.filter(r => CAT_GROUPS.logistics.includes(r.category));
-                else if (appUser.role === 'admin') data = data.filter(r => CAT_GROUPS.admin.includes(r.category));
-                if (!data.length) return alert("Nada para exportar.");
-                
-                // ORDENAÇÃO POR SETOR
-                const priorityOrder = ['QGI', 'MIC', 'ESP', 'FQA'];
-                data.sort((a, b) => {
-                    const sectorA = a.requesterSector || 'OUTROS';
-                    const sectorB = b.requesterSector || 'OUTROS';
-                    const idxA = priorityOrder.indexOf(sectorA);
-                    const idxB = priorityOrder.indexOf(sectorB);
-                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-                    if (idxA !== -1) return -1;
-                    if (idxB !== -1) return 1;
-                    return sectorA.localeCompare(sectorB);
-                });
-
-                const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4');
-                doc.setFontSize(18); doc.text("Relatório Semanal - LabFlow 2026", 14, 22);
-                doc.setFontSize(10); doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 28);
-                doc.text(`Perfil: ${appUser.role === 'logistics' ? 'Logística' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'master' ? 'Gestor do Sistema' : appUser.sector}`, 14, 33);
-                
-                doc.autoTable({ 
-                    head: [["Data", "Cód", "Item", "Local", "Qtd", "Cat", "Solicitante", "Status"]], 
-                    body: data.map(r => {
-                        const rawLabel = CAT_LABELS[r.category] || r.category;
-                        // Regex para remover emojis
-                        const cleanLabel = rawLabel.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
-                        
-                        // Translate Status
-                        let statusPT = 'Pendente';
-                        if (r.status === 'approved') statusPT = 'Disponível';
-                        if (r.status === 'out_of_stock') statusPT = 'Em Falta';
-
-                        return [
-                            new Date(r.createdAt).toLocaleDateString('pt-BR'), 
-                            r.itemCode||'-', 
-                            r.item, 
-                            r.storageLocation||'-', 
-                            `${r.quantity} ${r.unit}`, 
-                            cleanLabel, 
-                            `${r.requesterName} (${r.requesterSector})`, 
-                            statusPT
-                        ];
-                    }), 
-                    startY: 40 
-                });
-                doc.save('relatorio.pdf');
-            };
-
             const { activeList, historyList } = React.useMemo(() => {
                 if (!appUser) return { activeList: [], historyList: [] };
                 let list = requests.filter(r => r.item.toLowerCase().includes(searchTerm.toLowerCase()) || r.requesterName.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -643,13 +601,9 @@
                 
                 const active = [], history = [];
                 list.forEach(r => {
-                    if (r.isArchived) {
-                        history.push(r);
-                    } else {
+                    if (r.isArchived) { history.push(r); } else {
                         const finished = r.status === 'approved' || r.status === 'out_of_stock';
-                        if (CAT_GROUPS.admin.includes(r.category)) {
-                             active.push(r); 
-                        } else {
+                        if (CAT_GROUPS.admin.includes(r.category)) { active.push(r); } else {
                             const recent = isRecent(r.statusUpdatedAt || r.createdAt, 7);
                             if (r.status === 'pending' || (finished && recent)) active.push(r); else history.push(r);
                         }
@@ -673,7 +627,7 @@
                         <div className={`bg-blue-600 px-4 py-2 text-center text-xs sm:text-sm font-medium text-white shadow-inner flex justify-center gap-6 ${isCarnival ? 'bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600' : ''}`}><span>🧪 Lab: <span className="text-yellow-300 font-bold">{getNextMonday()}</span></span><span>📎 Escritório: <span className="text-yellow-300 font-bold">{getNextOfficeDay()}</span></span></div>
                     </header>
                     <main className="max-w-5xl mx-auto px-4 py-6">
-                        <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto"><button onClick={() => setView('active')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap ${view === 'active' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}>Pedidos em Aberto</button><button onClick={() => setView('history')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'history' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.History /> Histórico</button>{(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('inventory')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'inventory' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Box /> Controle de Estoque</button>}</div>
+                        <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto"><button onClick={() => setView('active')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap ${view === 'active' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}>Pedidos em Aberto</button><button onClick={() => setView('history')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'history' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.History /> Histórico</button>{(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('inventory')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'inventory' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Box /> Controle de Estoque</button>}{(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('movements')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'movements' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Activity /> Movimentações</button>}</div>
                         {view === 'active' && (
                             <>
                                 {appUser.role === 'lab_tech' && (
@@ -691,7 +645,15 @@
                                         </form>
                                     </div>
                                 )}
-                                <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6"><div className="relative w-full md:w-96"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div><input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div><div className="text-sm font-medium text-slate-600 bg-slate-200 px-3 py-1 rounded-full">Exibindo: {activeList.length}</div></div>
+                                <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6"><div className="relative w-full md:w-96"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div><input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-sm font-medium text-slate-600 bg-slate-200 px-3 py-1 rounded-full">Exibindo: {activeList.length}</div>
+                                        {/* BOTÃO MANUAL DE ARQUIVAR (SÓ ADM/MASTER) */}
+                                        {(appUser.role === 'admin' || appUser.role === 'master') && (
+                                            <button onClick={handleArchiveCycle} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded shadow flex items-center gap-2 animate-in fade-in"><Icons.Archive /> Fechar Ciclo</button>
+                                        )}
+                                    </div>
+                                </div>
                                 <div className="space-y-3">{activeList.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhum pedido pendente ou recente.</div> : activeList.map((req) => (<RequestCard key={req.id} req={req} role={appUser.role} onDelete={deleteRequest} onUpdateStatus={updateStatus} onOutOfStock={handleOutOfStockClick} onSaveStockInfo={handleSaveStockInfo} onApprovePartial={handleApprovePartial} onUpdateReq={handleUpdateReq} currentUser={appUser} />))}</div>
                             </>
                         )}
