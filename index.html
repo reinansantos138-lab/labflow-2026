@@ -71,7 +71,7 @@
         const db = getFirestore(app);
 
         // --- CONSTANTES ---
-        const SETORES = ['QGI', 'ESP', 'FQA', 'FRASCARIA', 'CRO', 'MIC', 'RECEPÇÃO', 'AUXILIARES', 'OUTROS']; 
+        const SETORES = ['QGI', 'ESP', 'FQA', 'FRASCARIA', 'CRO', 'MIC', 'RECEPÇÃO', 'AMOSTRAGEM', 'AUXILIARES', 'OUTROS']; 
         const SENHA_LOGISTICA = "cimatec2026";
         const SENHA_ADMIN = "adm2026";
         const SENHA_MASTER = "master2026"; 
@@ -332,21 +332,65 @@
             );
         };
 
-        const HistoryRow = ({ req, onMarkRestocked }) => (
-            <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col md:flex-row gap-4 items-center text-sm">
-                <div className="flex-1 w-full">
-                    <div className="flex justify-between mb-1"><span className="font-bold text-slate-700">{req.item}</span><span className="text-slate-400 text-xs">{formatDate(req.createdAt)}</span></div>
-                    <div className="flex gap-2 text-xs text-slate-500"><span>{req.quantity} {req.unit}</span><span>• {req.requesterName} ({req.requesterSector})</span>{req.itemCode && <span>• Cód: {req.itemCode}</span>}</div>
-                    <div className="mt-1"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border bg-slate-50 text-slate-500">{CAT_LABELS[req.category] || req.category}</span></div>
-                    {req.logisticsMessage && <div className={`text-xs mt-1 ${req.status === 'approved' ? 'text-yellow-700 bg-yellow-50 p-1 rounded inline-block' : 'text-red-500'}`}>Obs: {req.logisticsMessage}</div>}
+        const HistoryRow = ({ req, onMarkRestocked, isLocked, onDelete, onEdit }) => {
+            const [isEditing, setIsEditing] = React.useState(false);
+            const [editItem, setEditItem] = React.useState(req.item);
+            const [editQty, setEditQty] = React.useState(req.quantity);
+            const [editUnit, setEditUnit] = React.useState(req.unit);
+            const [editCategory, setEditCategory] = React.useState(req.category);
+
+            const handleSave = () => {
+                onEdit(req.id, { item: editItem, quantity: editQty, unit: editUnit, category: editCategory });
+                setIsEditing(false);
+            };
+
+            if (isEditing) {
+                return (
+                    <div className="bg-white p-3 rounded-lg border border-blue-200 flex flex-col gap-2">
+                        <div className="text-xs font-bold text-blue-800 uppercase mb-1">Editando Histórico</div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <input className="p-1.5 border rounded text-sm col-span-2" value={editItem} onChange={e => setEditItem(e.target.value)} />
+                            <input type="number" className="p-1.5 border rounded text-sm" value={editQty} onChange={e => setEditQty(e.target.value)} />
+                            <select className="p-1.5 border rounded text-sm" value={editUnit} onChange={e => setEditUnit(e.target.value)}>
+                                <option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="pct">pct</option>
+                            </select>
+                            <select className="p-1.5 border rounded text-sm col-span-2" value={editCategory} onChange={e => setEditCategory(e.target.value)}>
+                                <optgroup label="Adm (Cicilha)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup>
+                                <optgroup label="Logística (Alex)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup>
+                            </select>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-2">
+                            <button onClick={() => setIsEditing(false)} className="px-3 py-1 bg-slate-100 rounded text-xs">Cancelar</button>
+                            <button onClick={handleSave} className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold">Salvar</button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col md:flex-row gap-4 items-center text-sm">
+                    <div className="flex-1 w-full">
+                        <div className="flex justify-between mb-1"><span className="font-bold text-slate-700">{req.item}</span><span className="text-slate-400 text-xs">{formatDate(req.createdAt)}</span></div>
+                        <div className="flex gap-2 text-xs text-slate-500"><span>{req.quantity} {req.unit}</span><span>• {req.requesterName} ({req.requesterSector})</span>{req.itemCode && <span>• Cód: {req.itemCode}</span>}</div>
+                        <div className="mt-1"><span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border bg-slate-50 text-slate-500">{CAT_LABELS[req.category] || req.category}</span></div>
+                        {req.logisticsMessage && <div className={`text-xs mt-1 ${req.status === 'approved' ? 'text-yellow-700 bg-yellow-50 p-1 rounded inline-block' : 'text-red-500'}`}>Obs: {req.logisticsMessage}</div>}
+                    </div>
+                    <div className="flex flex-col md:flex-row items-center md:items-end gap-2 w-full md:w-auto justify-between md:justify-end">
+                        <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${req.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{req.status === 'approved' ? 'Entregue/Disp.' : 'Em Falta'}</span>
+                            {req.status === 'out_of_stock' && !req.stockRestored && <button onClick={() => onMarkRestocked(req.id)} className="flex items-center gap-1 bg-blue-50 text-blue-600 border border-blue-200 px-2 py-1 rounded text-xs hover:bg-blue-100 transition"><Icons.RefreshCw /> Reposto?</button>}
+                            {req.status === 'out_of_stock' && req.stockRestored && <span className="text-xs text-blue-600 font-bold border border-blue-100 bg-blue-50 px-2 py-1 rounded">Estoque OK</span>}
+                        </div>
+                        {!isLocked && (
+                            <div className="flex gap-2 animate-in fade-in pt-2 md:pt-0">
+                                <button onClick={() => setIsEditing(true)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded transition"><Icons.Edit /></button>
+                                <button onClick={() => onDelete(req.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded transition"><Icons.Trash2 /></button>
+                            </div>
+                        )}
+                    </div>
                 </div>
-                <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${req.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{req.status === 'approved' ? 'Entregue/Disp.' : 'Em Falta'}</span>
-                    {req.status === 'out_of_stock' && !req.stockRestored && <button onClick={() => onMarkRestocked(req.id)} className="flex items-center gap-1 bg-blue-50 text-blue-600 border border-blue-200 px-2 py-1 rounded text-xs hover:bg-blue-100 transition"><Icons.RefreshCw /> Reposto?</button>}
-                    {req.status === 'out_of_stock' && req.stockRestored && <span className="text-xs text-blue-600 font-bold border border-blue-100 bg-blue-50 px-2 py-1 rounded">Estoque OK</span>}
-                </div>
-            </div>
-        );
+            );
+        };
 
         // --- NOVA VISUALIZAÇÃO: SOLICITAÇÃO DE COMPRAS (ADMIN) ---
         const PurchaseRequestView = ({ userRole }) => {
@@ -660,6 +704,7 @@
             const [modalOpen, setModalOpen] = React.useState(false);
             const [selectedReqId, setSelectedReqId] = React.useState(null);
             const [stockMessage, setStockMessage] = React.useState('');
+            const [isHistoryLocked, setIsHistoryLocked] = React.useState(true);
 
             React.useEffect(() => { signInAnonymously(auth).catch(console.error); onAuthStateChanged(auth, u => { setUser(u); const s = localStorage.getItem('labflow_user_v2'); if (s) setAppUser(JSON.parse(s)); setLoading(false); }); }, []);
             React.useEffect(() => { if (!user) return; onSnapshot(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), s => s.exists() ? setNotices(s.data()) : setDoc(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), { logistics: '', admin: '' })); }, [user]);
@@ -794,8 +839,25 @@
                 return { activeList: active, historyList: history };
             }, [requests, searchTerm, appUser]);
 
-            const missingHistory = historyList.filter(r => r.status === 'out_of_stock');
-            const deliveredHistory = historyList.filter(r => r.status === 'approved');
+            const groupedHistoryArray = React.useMemo(() => {
+                const groups = [];
+                const map = new Map();
+                historyList.forEach(req => {
+                    const d = new Date(req.createdAt);
+                    const monthYear = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                    // Capitalizando a primeira letra do mês (ex: "Fevereiro de 2026")
+                    const capitalizedStr = monthYear.charAt(0).toUpperCase() + monthYear.slice(1);
+                    
+                    if (!map.has(capitalizedStr)) {
+                        map.set(capitalizedStr, { missing: [], delivered: [] });
+                        groups.push(capitalizedStr);
+                    }
+                    if (req.status === 'out_of_stock') map.get(capitalizedStr).missing.push(req);
+                    else map.get(capitalizedStr).delivered.push(req);
+                });
+                return groups.map(g => ({ month: g, ...map.get(g) }));
+            }, [historyList]);
+
             const isCarnival = isCarnivalSeason();
 
             if (loading) return <div className="flex h-screen items-center justify-center text-slate-500">Conectando...</div>;
@@ -818,8 +880,21 @@
                                         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><div className={`${isCarnival ? 'text-pink-600' : 'text-blue-600'}`}><Icons.ClipboardList /></div> Nova Solicitação</h2>
                                         <form onSubmit={handleSubmitRequest} className="space-y-4">
                                             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                                                <div className="md:col-span-5"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Item</label><input type="text" value={newItem} onChange={handleItemChange} placeholder="Ex: Item..." list="inventory-list" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" /><datalist id="inventory-list">{inventoryNames.map((name, i) => <option key={i} value={name} />)}</datalist></div>
-                                                <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd</label><input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" /></div>
+                                                <div className="md:col-span-5">
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Item</label>
+                                                    <select 
+                                                        value={newItem} 
+                                                        onChange={handleItemChange} 
+                                                        className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer"
+                                                        required
+                                                    >
+                                                        <option value="" disabled>Selecione um item do estoque...</option>
+                                                        {inventoryNames.sort((a, b) => a.localeCompare(b)).map((name, i) => (
+                                                            <option key={i} value={name}>{name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd</label><input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" required /></div>
                                                 <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Unid</label><select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none"><option value="un">Unid.</option><option value="cx">Caixa</option><option value="ml">ml</option><option value="L">L</option><option value="pct">Pacote</option></select></div>
                                                 <div className="md:col-span-3"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoria</label><select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none"><optgroup label="Adm (Cicilha)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup><optgroup label="Logística (Alex)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup></select></div>
                                             </div>
@@ -841,9 +916,48 @@
                         )}
                         {view === 'history' && (
                             <div className="space-y-8 animate-in fade-in">
-                                <div className="relative w-full md:w-96 mb-4"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div><input type="text" placeholder="Buscar no histórico..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div>
-                                <div><h3 className="text-lg font-bold text-red-700 mb-3 flex items-center gap-2"><Icons.PackageX /> Itens em Falta (Histórico)</h3><div className="space-y-3">{missingHistory.map(req => (<HistoryRow key={req.id} req={req} onMarkRestocked={handleMarkRestocked} />))}</div></div>
-                                <div><h3 className="text-lg font-bold text-green-700 mb-3 flex items-center gap-2"><Icons.CheckCircle2 /> Itens Entregues/Disponíveis (Histórico)</h3><div className="space-y-3">{deliveredHistory.map(req => (<HistoryRow key={req.id} req={req} onMarkRestocked={handleMarkRestocked} />))}</div></div>
+                                <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-4">
+                                    <div className="relative w-full md:w-96">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
+                                        <input type="text" placeholder="Buscar no histórico..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
+                                    </div>
+                                    {(appUser.role === 'admin' || appUser.role === 'master' || appUser.role === 'logistics') && (
+                                        <button 
+                                            onClick={() => setIsHistoryLocked(!isHistoryLocked)} 
+                                            className={`px-4 py-2 rounded-lg font-bold shadow flex items-center gap-2 transition ${isHistoryLocked ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}
+                                        >
+                                            {isHistoryLocked ? <><Icons.Lock /> Travado</> : <><Icons.Unlock /> Destravado</>}
+                                        </button>
+                                    )}
+                                </div>
+                                
+                                {groupedHistoryArray.length === 0 ? (
+                                    <div className="text-center text-slate-400 py-10">Nenhum item no histórico.</div>
+                                ) : (
+                                    groupedHistoryArray.map(group => (
+                                        <div key={group.month} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                            <h2 className="text-xl font-black text-slate-800 mb-4 capitalize border-b border-slate-200 pb-2">{group.month}</h2>
+                                            
+                                            {group.missing.length > 0 && (
+                                                <div className="mb-6">
+                                                    <h3 className="text-md font-bold text-red-700 mb-3 flex items-center gap-2"><Icons.PackageX /> Itens em Falta</h3>
+                                                    <div className="space-y-3">
+                                                        {group.missing.map(req => (<HistoryRow key={req.id} req={req} onMarkRestocked={handleMarkRestocked} isLocked={isHistoryLocked} onDelete={deleteRequest} onEdit={handleUpdateReq} />))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {group.delivered.length > 0 && (
+                                                <div>
+                                                    <h3 className="text-md font-bold text-green-700 mb-3 flex items-center gap-2"><Icons.CheckCircle2 /> Itens Entregues/Disponíveis</h3>
+                                                    <div className="space-y-3">
+                                                        {group.delivered.map(req => (<HistoryRow key={req.id} req={req} onMarkRestocked={handleMarkRestocked} isLocked={isHistoryLocked} onDelete={deleteRequest} onEdit={handleUpdateReq} />))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         )}
                         {view === 'inventory' && <InventoryView userRole={appUser.role} currentUser={appUser} />}
