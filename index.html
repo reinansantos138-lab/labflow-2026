@@ -72,7 +72,6 @@
 
         // --- CONSTANTES ---
         const SETORES = ['QGI', 'ESP', 'FQA', 'FRASCARIA', 'CRO', 'MIC', 'RECEPÇÃO', 'AMOSTRAGEM', 'AUXILIARES', 'OUTROS']; 
-        const SENHA_LOGISTICA = "cimatec2026";
         const SENHA_ADMIN = "adm2026";
         const SENHA_MASTER = "master2026"; 
 
@@ -156,11 +155,6 @@
         };
 
         const processStockTransaction = async (itemName, quantity, type, origin, user, requestId = null, notes = '') => {
-            if (user.role === 'logistics' && origin === 'pedido') {
-                console.log("Logística: Baixa direta sem controle de estoque físico.");
-                return;
-            }
-
             const q = query(collection(db, 'estoque_lab_2026'), where('name', '==', itemName));
             const querySnapshot = await getDocs(q);
 
@@ -210,8 +204,7 @@
 
             const handleEnter = () => {
                 setError(''); if (!name.trim()) return setError("Digite seu nome.");
-                if (role === 'logistics') { if (password !== SENHA_LOGISTICA) return setError("Senha incorreta."); onLogin({ name, role, sector: 'LOGÍSTICA' }); }
-                else if (role === 'admin') { if (password !== SENHA_ADMIN) return setError("Senha incorreta."); onLogin({ name, role, sector: 'ADMINISTRAÇÃO' }); }
+                if (role === 'admin') { if (password !== SENHA_ADMIN) return setError("Senha incorreta."); onLogin({ name, role, sector: 'ADMINISTRAÇÃO' }); }
                 else if (role === 'master') { if (password !== SENHA_MASTER) return setError("Senha incorreta."); onLogin({ name, role, sector: 'GESTOR DO SISTEMA' }); }
                 else { if (!sector) return setError("Selecione seu setor."); onLogin({ name, role, sector }); }
             };
@@ -224,7 +217,7 @@
                         <p className="text-center text-slate-500 mb-6 text-sm">Controle de Almoxarifado & Adm</p>
                         <div className="space-y-4">
                             <div><label className="block text-sm font-bold text-slate-700 mb-1">Seu Nome</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: João Silva" className="w-full p-3 border border-slate-300 rounded-lg outline-none" /></div>
-                            <div><label className="block text-sm font-bold text-slate-700 mb-1">Função</label><div className="grid grid-cols-2 gap-2"><button onClick={() => setRole('lab_tech')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'lab_tech' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-200 text-slate-500'}`}><Icons.Beaker /><span className="text-xs font-medium">Lab</span></button><button onClick={() => setRole('logistics')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'logistics' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 text-slate-500'}`}><Icons.Truck /><span className="text-xs font-medium">Logística</span></button><button onClick={() => setRole('admin')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'admin' ? 'bg-purple-50 border-purple-500 text-purple-700' : 'border-slate-200 text-slate-500'}`}><Icons.Briefcase /><span className="text-xs font-medium">Admin</span></button><button onClick={() => setRole('master')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'master' ? 'bg-red-50 border-red-500 text-red-700' : 'border-slate-200 text-slate-500'}`}><Icons.Shield /><span className="text-xs font-medium">Gestor</span></button></div></div>
+                            <div><label className="block text-sm font-bold text-slate-700 mb-1">Função</label><div className="grid grid-cols-3 gap-2"><button onClick={() => setRole('lab_tech')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'lab_tech' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-200 text-slate-500'}`}><Icons.Beaker /><span className="text-xs font-medium">Lab</span></button><button onClick={() => setRole('admin')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'admin' ? 'bg-purple-50 border-purple-500 text-purple-700' : 'border-slate-200 text-slate-500'}`}><Icons.Briefcase /><span className="text-xs font-medium">Admin</span></button><button onClick={() => setRole('master')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'master' ? 'bg-red-50 border-red-500 text-red-700' : 'border-slate-200 text-slate-500'}`}><Icons.Shield /><span className="text-xs font-medium">Gestor</span></button></div></div>
                             {role === 'lab_tech' ? (<div className="fade-in"><label className="block text-sm font-bold text-slate-700 mb-1">Setor</label><div className="relative"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Building2 /></div><select value={sector} onChange={(e) => setSector(e.target.value)} className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg outline-none bg-white"><option value="" disabled>Selecione...</option>{SETORES.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div>) : (<div className="fade-in"><label className="block text-sm font-bold text-slate-700 mb-1">Senha</label><div className="relative"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Lock /></div><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg outline-none" /></div></div>)}
                             {error && <div className="text-red-500 text-sm font-medium text-center bg-red-50 p-2 rounded">{error}</div>}
                             <button onClick={handleEnter} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow uppercase">Entrar</button>
@@ -236,13 +229,15 @@
 
         const NoticeBanner = ({ notices, userRole, onUpdateNotice }) => {
             const [isEditing, setIsEditing] = React.useState(false);
-            const [tempLogistics, setTempLogistics] = React.useState(notices.logistics || '');
             const [tempAdmin, setTempAdmin] = React.useState(notices.admin || '');
-            React.useEffect(() => { setTempLogistics(notices.logistics || ''); setTempAdmin(notices.admin || ''); }, [notices]);
-            const handleSave = () => { onUpdateNotice({ logistics: (userRole === 'logistics' || userRole === 'master') ? tempLogistics : notices.logistics, admin: (userRole === 'admin' || userRole === 'master') ? tempAdmin : notices.admin }); setIsEditing(false); };
-            if (isEditing) return (<div className="bg-yellow-50 border-b border-yellow-200 p-4 animate-in fade-in"><h4 className="text-sm font-bold text-yellow-800 mb-2 flex items-center gap-2"><Icons.Edit/> Editar Aviso</h4><div className="flex flex-col gap-3">{(userRole === 'logistics' || userRole === 'master') && <input className="w-full p-2 border rounded text-sm outline-none" value={tempLogistics} onChange={e => setTempLogistics(e.target.value)} placeholder="Aviso Logística..." />}{(userRole === 'admin' || userRole === 'master') && <input className="w-full p-2 border rounded text-sm outline-none" value={tempAdmin} onChange={e => setTempAdmin(e.target.value)} placeholder="Aviso Administração..." />}<div className="flex gap-2 justify-end"><button onClick={() => setIsEditing(false)} className="px-3 py-1 text-xs text-slate-500 rounded border bg-white">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-4 py-1 rounded text-xs font-bold shadow-sm">Salvar</button></div></div></div>);
-            if (!notices.logistics && !notices.admin && userRole !== 'logistics' && userRole !== 'admin' && userRole !== 'master') return null;
-            return (<div className="bg-gradient-to-r from-orange-50 via-yellow-50 to-orange-50 border-b border-orange-200 relative shadow-sm"><div className="max-w-5xl mx-auto px-4 py-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left min-h-[40px]"><div className="flex-1 flex flex-col sm:flex-row gap-x-6 gap-y-2 justify-center sm:justify-start items-center w-full">{notices.logistics && <div className="flex items-center gap-2 text-orange-800 animate-blink font-semibold text-sm"><span className="bg-orange-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Logística</span><span>{notices.logistics}</span></div>}{notices.admin && <div className="flex items-center gap-2 text-indigo-900 animate-blink font-semibold text-sm"><span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Adm</span><span>{notices.admin}</span></div>}</div>{userRole !== 'lab_tech' && <button onClick={() => setIsEditing(true)} className="text-slate-400 hover:text-blue-600 p-1.5 bg-white/50 hover:bg-white rounded-full transition"><Icons.Edit /></button>}</div></div>);
+            React.useEffect(() => { setTempAdmin(notices.admin || ''); }, [notices]);
+            const handleSave = () => { onUpdateNotice({ admin: (userRole === 'admin' || userRole === 'master') ? tempAdmin : notices.admin }); setIsEditing(false); };
+            
+            if (isEditing) return (<div className="bg-yellow-50 border-b border-yellow-200 p-4 animate-in fade-in"><h4 className="text-sm font-bold text-yellow-800 mb-2 flex items-center gap-2"><Icons.Edit/> Editar Aviso</h4><div className="flex flex-col gap-3">{(userRole === 'admin' || userRole === 'master') && <input className="w-full p-2 border rounded text-sm outline-none" value={tempAdmin} onChange={e => setTempAdmin(e.target.value)} placeholder="Aviso Administração..." />}<div className="flex gap-2 justify-end"><button onClick={() => setIsEditing(false)} className="px-3 py-1 text-xs text-slate-500 rounded border bg-white">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-4 py-1 rounded text-xs font-bold shadow-sm">Salvar</button></div></div></div>);
+            
+            if (!notices.admin && userRole !== 'admin' && userRole !== 'master') return null;
+            
+            return (<div className="bg-gradient-to-r from-orange-50 via-yellow-50 to-orange-50 border-b border-orange-200 relative shadow-sm"><div className="max-w-5xl mx-auto px-4 py-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left min-h-[40px]"><div className="flex-1 flex flex-col sm:flex-row gap-x-6 gap-y-2 justify-center sm:justify-start items-center w-full">{notices.admin && <div className="flex items-center gap-2 text-indigo-900 animate-blink font-semibold text-sm"><span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Aviso Adm</span><span>{notices.admin}</span></div>}</div>{userRole !== 'lab_tech' && <button onClick={() => setIsEditing(true)} className="text-slate-400 hover:text-blue-600 p-1.5 bg-white/50 hover:bg-white rounded-full transition"><Icons.Edit /></button>}</div></div>);
         };
 
         const InventoryItemCard = ({ item, isLocked, onUpdateQty, onDelete, onEdit }) => {
@@ -253,7 +248,7 @@
             const getStatusColor = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'bg-red-100 text-red-700 border-red-200'; if (cur >= minimum && cur <= minimum * 1.2) return 'bg-yellow-100 text-yellow-800 border-yellow-200'; return 'bg-green-100 text-green-700 border-green-200'; };
             const getStatusLabel = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'Crítico'; if (cur >= minimum && cur <= minimum * 1.2) return 'Atenção'; return 'OK'; };
 
-            if (isEditing) return (<div className="bg-white p-4 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden"><div className="flex flex-col gap-2"><input className="p-1.5 border rounded text-sm font-bold" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Nome" /><select className="p-1.5 border rounded text-xs" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})}><optgroup label="Logística"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup><optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup></select><input className="p-1.5 border rounded text-xs" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} placeholder="Local" /><div className="grid grid-cols-3 gap-1"><input type="number" className="p-1.5 border rounded text-xs" value={editData.currentQty} onChange={e => setEditData({...editData, currentQty: e.target.value})} placeholder="Qtd" /><input type="number" className="p-1.5 border rounded text-xs" value={editData.minQty} onChange={e => setEditData({...editData, minQty: e.target.value})} placeholder="Min" /><select className="p-1.5 border rounded text-xs" value={editData.unit} onChange={e => setEditData({...editData, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select></div><div className="flex justify-end gap-2 mt-2"><button onClick={handleCancel} className="text-xs text-slate-500 hover:underline">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">Salvar</button></div></div></div>);
+            if (isEditing) return (<div className="bg-white p-4 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden"><div className="flex flex-col gap-2"><input className="p-1.5 border rounded text-sm font-bold" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Nome" /><select className="p-1.5 border rounded text-xs" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})}><optgroup label="Almoxarifado"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup><optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup></select><input className="p-1.5 border rounded text-xs" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} placeholder="Local" /><div className="grid grid-cols-3 gap-1"><input type="number" className="p-1.5 border rounded text-xs" value={editData.currentQty} onChange={e => setEditData({...editData, currentQty: e.target.value})} placeholder="Qtd" /><input type="number" className="p-1.5 border rounded text-xs" value={editData.minQty} onChange={e => setEditData({...editData, minQty: e.target.value})} placeholder="Min" /><select className="p-1.5 border rounded text-xs" value={editData.unit} onChange={e => setEditData({...editData, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select></div><div className="flex justify-end gap-2 mt-2"><button onClick={handleCancel} className="text-xs text-slate-500 hover:underline">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">Salvar</button></div></div></div>);
             
             return (
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
@@ -291,12 +286,12 @@
             return (
                 <div className={`bg-white rounded-lg shadow-sm border p-4 transition-all ${req.status === 'pending' ? 'border-l-4 border-l-yellow-400' : req.status === 'approved' ? 'border-l-4 border-l-green-500 bg-green-50/10' : 'border-l-4 border-l-red-500 opacity-75'}`}>
                     {isEditingReq ? (
-                        <div className="flex flex-col gap-3 bg-blue-50/50 p-2 rounded"><h4 className="text-xs font-bold text-blue-800 uppercase">Editando Pedido (Gestor)</h4><div className="grid grid-cols-2 gap-2"><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Item</label><input className="p-2 border rounded text-sm w-full" value={editItem} onChange={e => setEditItem(e.target.value)} /></div><div><label className="text-[10px] font-bold text-blue-800 uppercase">Categoria</label><select className="p-2 border rounded text-sm w-full" value={editCategory} onChange={e => setEditCategory(e.target.value)}><optgroup label="Adm (Cicilha)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup><optgroup label="Logística (Alex)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup></select></div><div className="flex gap-1"><div className="flex-1"><label className="text-[10px] font-bold text-blue-800 uppercase">Qtd</label><input className="p-2 border rounded text-sm w-full" type="number" value={editQty} onChange={e => setEditQty(e.target.value)} /></div><div className="w-20"><label className="text-[10px] font-bold text-blue-800 uppercase">Un</label><select className="p-2 border rounded text-sm w-full" value={editUnit} onChange={e => setEditUnit(e.target.value)}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="pct">pct</option></select></div></div><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Setor Solicitante</label><select className="p-2 border rounded text-sm w-full" value={editSector} onChange={e => setEditSector(e.target.value)}>{SETORES.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div><div className="flex justify-end gap-2"><button onClick={() => setIsEditingReq(false)} className="px-3 py-1 bg-white border rounded text-xs">Cancelar</button><button onClick={handleSaveEditReq} className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold">Salvar Alterações</button></div></div>
+                        <div className="flex flex-col gap-3 bg-blue-50/50 p-2 rounded"><h4 className="text-xs font-bold text-blue-800 uppercase">Editando Pedido (Gestor)</h4><div className="grid grid-cols-2 gap-2"><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Item</label><input className="p-2 border rounded text-sm w-full" value={editItem} onChange={e => setEditItem(e.target.value)} /></div><div><label className="text-[10px] font-bold text-blue-800 uppercase">Categoria</label><select className="p-2 border rounded text-sm w-full" value={editCategory} onChange={e => setEditCategory(e.target.value)}><optgroup label="Adm (Cicilha)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup><optgroup label="Almoxarifado (Logística)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup></select></div><div className="flex gap-1"><div className="flex-1"><label className="text-[10px] font-bold text-blue-800 uppercase">Qtd</label><input className="p-2 border rounded text-sm w-full" type="number" value={editQty} onChange={e => setEditQty(e.target.value)} /></div><div className="w-20"><label className="text-[10px] font-bold text-blue-800 uppercase">Un</label><select className="p-2 border rounded text-sm w-full" value={editUnit} onChange={e => setEditUnit(e.target.value)}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="pct">pct</option></select></div></div><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Setor Solicitante</label><select className="p-2 border rounded text-sm w-full" value={editSector} onChange={e => setEditSector(e.target.value)}>{SETORES.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div><div className="flex justify-end gap-2"><button onClick={() => setIsEditingReq(false)} className="px-3 py-1 bg-white border rounded text-xs">Cancelar</button><button onClick={handleSaveEditReq} className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold">Salvar Alterações</button></div></div>
                     ) : (
                         <div className="flex flex-col md:flex-row justify-between gap-4">
                             <div className="flex-1">
                                 <div className="flex items-center flex-wrap gap-2 mb-2"><span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${badgeColor}`}>{CAT_LABELS[req.category] || req.category}</span>{req.isUrgent && <span className="flex items-center gap-1 text-[10px] font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded border border-red-200"><Icons.AlertCircle /> URGENTE</span>}<span className="text-xs text-slate-400 flex items-center gap-1 ml-auto md:ml-0"><Icons.Clock /> {formatDate(req.createdAt)}</span></div>
-                                <div className="flex items-center gap-2"><div><h3 className="text-lg font-bold text-slate-800 leading-tight">{req.item}</h3><div className="text-sm font-medium text-slate-500 mt-1">Qtd: {req.quantity} {req.unit}</div></div>{(role === 'master' || role === 'logistics' || role === 'admin') && <button onClick={() => setIsEditingReq(true)} className="text-slate-300 hover:text-blue-500 p-1"><Icons.Edit /></button>}</div>
+                                <div className="flex items-center gap-2"><div><h3 className="text-lg font-bold text-slate-800 leading-tight">{req.item}</h3><div className="text-sm font-medium text-slate-500 mt-1">Qtd: {req.quantity} {req.unit}</div></div>{(role === 'master' || role === 'admin') && <button onClick={() => setIsEditingReq(true)} className="text-slate-300 hover:text-blue-500 p-1"><Icons.Edit /></button>}</div>
                                 {role !== 'lab_tech' && (<div className="mt-3 flex gap-2 items-end"><div className="flex-1 max-w-[120px]"><label className="text-[10px] font-bold text-slate-400 uppercase">Cód.</label><input type="text" value={itemCode} onChange={(e) => { setItemCode(e.target.value); setHasChanges(true); }} placeholder="0000" className="w-full text-xs p-1.5 border border-slate-300 rounded outline-none"/></div><div className="flex-1 max-w-[120px]"><label className="text-[10px] font-bold text-slate-400 uppercase">Local</label><input type="text" value={storageLocation} onChange={(e) => { setStorageLocation(e.target.value); setHasChanges(true); }} placeholder="A1" className="w-full text-xs p-1.5 border border-slate-300 rounded outline-none"/></div>{hasChanges && <button onClick={handleSaveInfo} title="Salvar" className="mb-[1px] p-1.5 bg-blue-100 text-blue-600 rounded"><Icons.Save /></button>}</div>)}
                                 {role === 'lab_tech' && (req.itemCode || req.storageLocation) && (<div className="mt-2 text-xs text-slate-500 flex gap-3">{req.itemCode && <span><strong>Cód:</strong> {req.itemCode}</span>}{req.storageLocation && <span><strong>Local:</strong> {req.storageLocation}</span>}</div>)}
                                 <div className="mt-3 pt-3 border-t border-slate-50 flex flex-wrap items-center gap-3 text-sm text-slate-600"><div className="flex items-center gap-1.5 bg-slate-100 px-2 py-1 rounded"><Icons.User /> <span className="font-semibold">{req.requesterName}</span><span className="text-slate-300">|</span><span className="text-blue-600 font-bold text-xs">{req.requesterSector || 'N/A'}</span></div>{req.notes && <span className="italic text-slate-400 text-xs">Obs: {req.notes}</span>}</div>
@@ -324,7 +319,7 @@
                                     )}
                                 </div>
                             )}
-                            {(role === 'lab_tech' || role === 'master') && req.status === 'pending' && role !== 'logistics' && role !== 'admin' && (<div className="flex items-center justify-end md:justify-center min-w-[50px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pl-4"><button onClick={() => onDelete(req.id)} className="ml-2 text-slate-300 hover:text-red-500"><Icons.Trash2 /></button></div>)}
+                            {(role === 'lab_tech' || role === 'master') && req.status === 'pending' && role !== 'admin' && (<div className="flex items-center justify-end md:justify-center min-w-[50px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pl-4"><button onClick={() => onDelete(req.id)} className="ml-2 text-slate-300 hover:text-red-500"><Icons.Trash2 /></button></div>)}
                             {role === 'lab_tech' && req.status !== 'pending' && (<div className="flex items-center justify-end md:justify-center min-w-[100px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pl-4">{req.status === 'approved' && <div className="text-center"><span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-1 rounded">DISPONÍVEL</span><div className="text-[10px] text-slate-400 mt-1">Retirar na 2ª</div></div>}{req.status === 'out_of_stock' && <span className="text-red-600 text-xs font-bold bg-red-50 px-2 py-1 rounded">EM FALTA</span>}</div>)}
                         </div>
                     )}
@@ -356,7 +351,7 @@
                             </select>
                             <select className="p-1.5 border rounded text-sm col-span-2" value={editCategory} onChange={e => setEditCategory(e.target.value)}>
                                 <optgroup label="Adm (Cicilha)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup>
-                                <optgroup label="Logística (Alex)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup>
+                                <optgroup label="Almoxarifado (Logística)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup>
                             </select>
                         </div>
                         <div className="flex justify-end gap-2 mt-2">
@@ -652,8 +647,7 @@
                             <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <input className="p-2 border rounded" placeholder="Nome do Item" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
                                 <select className="p-2 border rounded" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
-                                    {/* SE FOR ADMIN, SÓ MOSTRA CATEGORIAS DE ADM. SE MASTER, MOSTRA TUDO */}
-                                    {userRole === 'master' && <optgroup label="Logística (Alex)"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>}
+                                    {userRole === 'master' && <optgroup label="Almoxarifado (Logística)"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>}
                                     <optgroup label="Adm (Cicilha)"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup>
                                 </select>
                                 <input className="p-2 border rounded" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
@@ -706,6 +700,11 @@
             const [stockMessage, setStockMessage] = React.useState('');
             const [isHistoryLocked, setIsHistoryLocked] = React.useState(true);
 
+            // NOVOS ESTADOS PARA O GESTOR (CÓDIGO, LOCAL E SETOR)
+            const [itemCodeReq, setItemCodeReq] = React.useState('');
+            const [storageLocationReq, setStorageLocationReq] = React.useState('');
+            const [sectorReq, setSectorReq] = React.useState('');
+
             React.useEffect(() => { signInAnonymously(auth).catch(console.error); onAuthStateChanged(auth, u => { setUser(u); const s = localStorage.getItem('labflow_user_v2'); if (s) setAppUser(JSON.parse(s)); setLoading(false); }); }, []);
             React.useEffect(() => { if (!user) return; onSnapshot(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), s => s.exists() ? setNotices(s.data()) : setDoc(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), { logistics: '', admin: '' })); }, [user]);
             React.useEffect(() => { if (appUser && (newItem || quantity || notes)) { localStorage.setItem('labflow_draft_v1', JSON.stringify({ item: newItem, quantity, unit, category, notes, isUrgent })); setDraftSaved(true); setTimeout(() => setDraftSaved(false), 2000); } }, [newItem, quantity, unit, category, notes, isUrgent, appUser]);
@@ -720,14 +719,20 @@
                     const map = {};
                     s.docs.forEach(d => {
                         const data = d.data();
-                        names.push(data.name);
                         map[data.name.trim().toLowerCase()] = data;
+                        
+                        // SE FOR TÉCNICO, ESCONDE OS ITENS DE LOGÍSTICA DO DROPDOWN
+                        if (appUser && appUser.role === 'lab_tech' && CAT_GROUPS.logistics.includes(data.category)) {
+                            return; 
+                        }
+                        
+                        names.push(data.name);
                     });
                     setInventoryNames(names);
                     setInventoryMap(map);
                 }); 
                 return () => unsub(); 
-            }, [user]);
+            }, [user, appUser]);
 
             const handleItemChange = (e) => {
                 const val = e.target.value;
@@ -737,13 +742,54 @@
                 if (match) {
                     setCategory(match.category);
                     setUnit(match.unit); 
+                    setStorageLocationReq(match.location || '');
+                    
+                    try {
+                        const catalog = JSON.parse(localStorage.getItem('labflow_catalog') || '{}');
+                        const savedItem = catalog[val.trim().toLowerCase()];
+                        if (savedItem && savedItem.code) {
+                            setItemCodeReq(savedItem.code);
+                        } else {
+                            setItemCodeReq('');
+                        }
+                    } catch(err) {}
+                } else {
+                    setItemCodeReq('');
+                    setStorageLocationReq('');
                 }
             };
 
             const handleLogin = (u) => { setAppUser(u); localStorage.setItem('labflow_user_v2', JSON.stringify(u)); };
             const handleLogout = () => { setAppUser(null); localStorage.removeItem('labflow_user_v2'); };
             const handleUpdateNotice = async (n) => await updateDoc(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), n);
-            const handleSubmitRequest = async (e) => { e.preventDefault(); if (!newItem.trim() || !quantity) return; await addDoc(collection(db, 'solicitacoes_lab_2026'), { item: newItem, quantity, unit, category, isUrgent, notes, requesterName: appUser.name, requesterSector: appUser.sector, requesterId: user.uid, createdAt: new Date().toISOString(), status: 'pending', statusUpdatedAt: new Date().toISOString() }); setNewItem(''); setQuantity(''); setNotes(''); localStorage.removeItem('labflow_draft_v1'); alert('Solicitação enviada!'); };
+            const handleSubmitRequest = async (e) => { 
+                e.preventDefault(); 
+                if (!newItem.trim() || !quantity) return; 
+                await addDoc(collection(db, 'solicitacoes_lab_2026'), { 
+                    item: newItem, 
+                    quantity, 
+                    unit, 
+                    category, 
+                    isUrgent, 
+                    notes, 
+                    itemCode: itemCodeReq, 
+                    storageLocation: storageLocationReq, 
+                    requesterName: appUser.name, 
+                    requesterSector: sectorReq || appUser.sector, 
+                    requesterId: user.uid, 
+                    createdAt: new Date().toISOString(), 
+                    status: 'pending', 
+                    statusUpdatedAt: new Date().toISOString() 
+                }); 
+                setNewItem(''); 
+                setQuantity(''); 
+                setNotes(''); 
+                setItemCodeReq('');
+                setStorageLocationReq('');
+                setSectorReq('');
+                localStorage.removeItem('labflow_draft_v1'); 
+                alert('Solicitação enviada!'); 
+            };
             const handleSaveStockInfo = async (id, c, l, n) => { await updateDoc(doc(db, 'solicitacoes_lab_2026', id), { itemCode: c, storageLocation: l }); const cat = JSON.parse(localStorage.getItem('labflow_catalog') || '{}'); cat[n.trim().toLowerCase()] = { code: c, loc: l }; localStorage.setItem('labflow_catalog', JSON.stringify(cat)); };
             const handleUpdateReq = async (id, d) => await updateDoc(doc(db, 'solicitacoes_lab_2026', id), d);
             const handleApprovePartial = async (id, nq, oq) => { await updateDoc(doc(db, 'solicitacoes_lab_2026', id), { status: 'approved', quantity: nq, statusUpdatedAt: new Date().toISOString(), logisticsMessage: `Qtd Ajustada. Solicitado: ${oq}` }); };
@@ -752,12 +798,19 @@
             const confirmOutOfStock = async () => { if (!selectedReqId) return; await updateDoc(doc(db, 'solicitacoes_lab_2026', selectedReqId), { status: 'out_of_stock', statusUpdatedAt: new Date().toISOString(), logisticsMessage: stockMessage || '' }); setModalOpen(false); };
             const updateStatus = async (id, s) => { const d = { status: s, statusUpdatedAt: new Date().toISOString() }; if (s === 'approved' || s === 'pending') d.logisticsMessage = ''; await updateDoc(doc(db, 'solicitacoes_lab_2026', id), d); };
             const deleteRequest = async (id) => { if (confirm('Excluir?')) await deleteDoc(doc(db, 'solicitacoes_lab_2026', id)); };
-            const handleExportPDF = () => {
+            const handleExportPDF = (type = 'all') => {
                 const d7 = new Date(); d7.setDate(d7.getDate() - 7);
                 let data = requests.filter(r => new Date(r.createdAt) > d7);
-                if (appUser.role === 'lab_tech') data = data.filter(r => r.requesterSector === appUser.sector);
-                else if (appUser.role === 'logistics') data = data.filter(r => CAT_GROUPS.logistics.includes(r.category));
-                else if (appUser.role === 'admin') data = data.filter(r => CAT_GROUPS.admin.includes(r.category));
+                
+                if (appUser.role === 'lab_tech') {
+                    data = data.filter(r => r.requesterSector === appUser.sector);
+                } else if (appUser.role === 'admin') {
+                    data = data.filter(r => CAT_GROUPS.admin.includes(r.category));
+                } else if (appUser.role === 'master' && type === 'logistics') {
+                    // Exporta APENAS os itens de logística que ainda estão pendentes (Para entregar ao almoxarifado)
+                    data = requests.filter(r => CAT_GROUPS.logistics.includes(r.category) && r.status === 'pending');
+                }
+
                 if (!data.length) return alert("Nada para exportar.");
                 
                 // ORDENAÇÃO POR SETOR
@@ -774,9 +827,9 @@
                 });
 
                 const { jsPDF } = window.jspdf; const doc = new jsPDF('l', 'mm', 'a4');
-                doc.setFontSize(18); doc.text("Relatório Semanal - LabFlow 2026", 14, 22);
+                doc.setFontSize(18); doc.text(type === 'logistics' ? "Pedidos Almoxarifado/Logística" : "Relatório Semanal - LabFlow 2026", 14, 22);
                 doc.setFontSize(10); doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 14, 28);
-                doc.text(`Perfil: ${appUser.role === 'logistics' ? 'Logística' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'master' ? 'Gestor do Sistema' : appUser.sector}`, 14, 33);
+                doc.text(`Perfil: ${type === 'logistics' ? 'Gestão de Logística' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'master' ? 'Gestor do Sistema' : appUser.sector}`, 14, 33);
                 
                 doc.autoTable({ 
                     head: [["Data", "Cód", "Item", "Local", "Qtd", "Cat", "Solicitante", "Status"]], 
@@ -819,7 +872,6 @@
             const { activeList, historyList } = React.useMemo(() => {
                 if (!appUser) return { activeList: [], historyList: [] };
                 let list = requests.filter(r => r.item.toLowerCase().includes(searchTerm.toLowerCase()) || r.requesterName.toLowerCase().includes(searchTerm.toLowerCase()));
-                if (appUser.role === 'logistics') list = list.filter(r => CAT_GROUPS.logistics.includes(r.category));
                 if (appUser.role === 'admin') list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
                 
                 const active = [], history = [];
@@ -867,14 +919,20 @@
                 <div className={`min-h-screen pb-20 fade-in ${isCarnival ? 'theme-carnaval' : ''}`}>
                     <NoticeBanner notices={notices} userRole={appUser.role} onUpdateNotice={handleUpdateNotice} />
                     <header className={`bg-white text-slate-800 shadow-sm border-b border-slate-200 sticky top-0 z-10 ${isCarnival ? 'header-bg' : ''}`}>
-                        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center"><div className="flex items-center gap-4 select-none"><InstitutionalLogo />{isCarnival && <span className="bg-pink-100 text-pink-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-200 animate-pulse">🎭 CARNAVAL</span>}<div className="hidden sm:block h-8 w-px bg-slate-200"></div><div><h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1><p className="text-xs text-slate-500 uppercase">{appUser.role === 'master' ? 'Gestor do Sistema' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'logistics' ? 'Logística' : appUser.sector}</p></div></div><div className="flex items-center gap-2"><button onClick={handleExportPDF} className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold py-2 px-3 rounded transition"><Icons.FileText /><span className="hidden sm:inline">PDF</span></button><button onClick={handleLogout} className="text-slate-400 hover:text-red-500 p-2 transition"><Icons.LogOut /></button></div></div>
+                        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center"><div className="flex items-center gap-4 select-none"><InstitutionalLogo />{isCarnival && <span className="bg-pink-100 text-pink-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-200 animate-pulse">🎭 CARNAVAL</span>}<div className="hidden sm:block h-8 w-px bg-slate-200"></div><div><h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1><p className="text-xs text-slate-500 uppercase">{appUser.role === 'master' ? 'Gestor do Sistema' : appUser.role === 'admin' ? 'Administração' : appUser.sector}</p></div></div><div className="flex items-center gap-2">
+                            {appUser.role === 'master' && (
+                                <button onClick={() => handleExportPDF('logistics')} className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold py-2 px-3 rounded transition"><Icons.FileText /><span className="hidden sm:inline">PDF Logística</span></button>
+                            )}
+                            <button onClick={() => handleExportPDF('all')} className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold py-2 px-3 rounded transition"><Icons.FileText /><span className="hidden sm:inline">PDF Geral</span></button>
+                            <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 p-2 transition"><Icons.LogOut /></button>
+                        </div></div>
                         <div className={`bg-blue-600 px-4 py-2 text-center text-xs sm:text-sm font-medium text-white shadow-inner flex justify-center gap-6 ${isCarnival ? 'bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600' : ''}`}><span>🧪 Lab: <span className="text-yellow-300 font-bold">{getNextMonday()}</span></span><span>📎 Escritório: <span className="text-yellow-300 font-bold">{getNextOfficeDay()}</span></span></div>
                     </header>
                     <main className="max-w-5xl mx-auto px-4 py-6">
                         <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto"><button onClick={() => setView('active')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap ${view === 'active' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}>Pedidos em Aberto</button><button onClick={() => setView('history')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'history' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.History /> Histórico</button>{(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('inventory')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'inventory' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Box /> Controle de Estoque</button>}{(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('movements')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'movements' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Activity /> Movimentações</button>}{(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('purchases')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'purchases' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.ShoppingCart /> Solicitação de Compras</button>}</div>
                         {view === 'active' && (
                             <>
-                                {appUser.role === 'lab_tech' && (
+                                {(appUser.role === 'lab_tech' || appUser.role === 'master') && (
                                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-8 relative">
                                         {draftSaved && <div className="absolute top-0 right-0 bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded-bl-lg flex items-center gap-1"><Icons.Save /> Salvo</div>}
                                         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><div className={`${isCarnival ? 'text-pink-600' : 'text-blue-600'}`}><Icons.ClipboardList /></div> Nova Solicitação</h2>
@@ -882,22 +940,62 @@
                                             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                                                 <div className="md:col-span-5">
                                                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Item</label>
-                                                    <select 
-                                                        value={newItem} 
-                                                        onChange={handleItemChange} 
-                                                        className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer"
-                                                        required
-                                                    >
-                                                        <option value="" disabled>Selecione um item do estoque...</option>
-                                                        {inventoryNames.sort((a, b) => a.localeCompare(b)).map((name, i) => (
-                                                            <option key={i} value={name}>{name}</option>
-                                                        ))}
-                                                    </select>
+                                                    {appUser.role === 'master' && CAT_GROUPS.logistics.includes(category) ? (
+                                                        <input 
+                                                            type="text" 
+                                                            value={newItem} 
+                                                            onChange={(e) => setNewItem(e.target.value)} 
+                                                            placeholder="Digite o nome do item..."
+                                                            className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none"
+                                                            required 
+                                                        />
+                                                    ) : (
+                                                        <select 
+                                                            value={newItem} 
+                                                            onChange={handleItemChange} 
+                                                            className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer"
+                                                            required
+                                                        >
+                                                            <option value="" disabled>Selecione um item do estoque...</option>
+                                                            {inventoryNames.sort((a, b) => a.localeCompare(b)).map((name, i) => (
+                                                                <option key={i} value={name}>{name}</option>
+                                                            ))}
+                                                        </select>
+                                                    )}
                                                 </div>
                                                 <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd</label><input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" required /></div>
                                                 <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Unid</label><select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none"><option value="un">Unid.</option><option value="cx">Caixa</option><option value="ml">ml</option><option value="L">L</option><option value="pct">Pacote</option></select></div>
-                                                <div className="md:col-span-3"><label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoria</label><select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none"><optgroup label="Adm (Cicilha)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup><optgroup label="Logística (Alex)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup></select></div>
+                                                <div className="md:col-span-3">
+                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoria</label>
+                                                    <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none">
+                                                        <optgroup label="Adm (Cicilha)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup>
+                                                        {appUser.role === 'master' && (
+                                                            <optgroup label="Almoxarifado (Logística)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup>
+                                                        )}
+                                                    </select>
+                                                </div>
                                             </div>
+
+                                            {appUser.role === 'master' && (
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-100 pt-4">
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Código</label>
+                                                        <input type="text" value={itemCodeReq} onChange={(e) => setItemCodeReq(e.target.value)} placeholder="Código (Opcional)" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Local</label>
+                                                        <input type="text" value={storageLocationReq} onChange={(e) => setStorageLocationReq(e.target.value)} placeholder="Local (Opcional)" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Setor Destino</label>
+                                                        <select value={sectorReq} onChange={(e) => setSectorReq(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer">
+                                                            <option value="">Para mim ({appUser.sector})</option>
+                                                            {SETORES.map(s => <option key={s} value={s}>{s}</option>)}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className="flex flex-col md:flex-row gap-4 items-center"><input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações..." className="flex-1 w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm outline-none" /><div className="flex items-center gap-3 w-full md:w-auto"><label className="flex items-center gap-2 cursor-pointer bg-red-50 text-red-700 px-3 py-2.5 rounded-lg border border-red-100 hover:bg-red-100 transition whitespace-nowrap"><input type="checkbox" checked={isUrgent} onChange={(e) => setIsUrgent(e.target.checked)} className="w-4 h-4 text-red-600 rounded" /><span className="font-semibold text-sm">Urgente</span></label><button type="submit" className={`flex-1 text-white px-6 py-2.5 rounded-lg font-bold shadow-md transition whitespace-nowrap ${isCarnival ? 'btn-primary' : 'bg-blue-600 hover:bg-blue-700'}`}>Adicionar</button></div></div>
                                         </form>
                                     </div>
@@ -921,7 +1019,7 @@
                                         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
                                         <input type="text" placeholder="Buscar no histórico..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
                                     </div>
-                                    {(appUser.role === 'admin' || appUser.role === 'master' || appUser.role === 'logistics') && (
+                                    {(appUser.role === 'admin' || appUser.role === 'master') && (
                                         <button 
                                             onClick={() => setIsHistoryLocked(!isHistoryLocked)} 
                                             className={`px-4 py-2 rounded-lg font-bold shadow flex items-center gap-2 transition ${isHistoryLocked ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}
