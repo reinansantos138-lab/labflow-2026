@@ -158,12 +158,24 @@
             const q = query(collection(db, 'estoque_lab_2026'), where('name', '==', itemName));
             const querySnapshot = await getDocs(q);
 
-            if (querySnapshot.empty) {
-                if (origin === 'pedido') throw new Error(`Item "${itemName}" não encontrado no estoque. Cadastre-o primeiro.`);
+            let stockItem = null;
+
+            if (!querySnapshot.empty) {
+                stockItem = querySnapshot.docs[0];
+            } else {
+                // Fallback: Busca todos e compara ignorando espaços em branco e letras maiúsculas/minúsculas
+                const allStock = await getDocs(collection(db, 'estoque_lab_2026'));
+                const fallbackDoc = allStock.docs.find(d => d.data().name && d.data().name.trim().toLowerCase() === itemName.trim().toLowerCase());
+                if (fallbackDoc) {
+                    stockItem = fallbackDoc;
+                }
+            }
+
+            if (!stockItem) {
+                if (origin === 'pedido') throw new Error(`Item "${itemName}" não encontrado no estoque. Verifique espaços no nome ou cadastre-o primeiro.`);
                 return;
             }
 
-            const stockItem = querySnapshot.docs[0];
             const currentQty = parseInt(stockItem.data().currentQty || 0);
             const change = parseInt(quantity);
 
@@ -243,7 +255,7 @@
         const InventoryItemCard = ({ item, isLocked, onUpdateQty, onDelete, onEdit }) => {
             const [isEditing, setIsEditing] = React.useState(false);
             const [editData, setEditData] = React.useState({ ...item });
-            const handleSave = () => { onEdit(item.id, editData); setIsEditing(false); };
+            const handleSave = () => { onEdit(item.id, { ...editData, name: editData.name.trim() }); setIsEditing(false); };
             const handleCancel = () => { setEditData({ ...item }); setIsEditing(false); };
             const getStatusColor = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'bg-red-100 text-red-700 border-red-200'; if (cur >= minimum && cur <= minimum * 1.2) return 'bg-yellow-100 text-yellow-800 border-yellow-200'; return 'bg-green-100 text-green-700 border-green-200'; };
             const getStatusLabel = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'Crítico'; if (cur >= minimum && cur <= minimum * 1.2) return 'Atenção'; return 'OK'; };
@@ -278,7 +290,7 @@
             const handleSaveInfo = () => { onSaveStockInfo(req.id, itemCode, storageLocation, req.item); setHasChanges(false); };
             const handleStatusAction = async (status) => { if (status === 'approved') { try { await processStockTransaction(req.item, req.quantity, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Total (${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onUpdateStatus(req.id, status); } catch (error) { alert("Erro de Estoque: " + error.message); } } else { onUpdateStatus(req.id, status); } };
             const handlePartialConfirm = async () => { try { await processStockTransaction(req.item, partialQty, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Parcial (${partialQty}/${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onApprovePartial(req.id, partialQty, req.quantity); setShowPartialInput(false); } catch (error) { alert("Erro de Estoque: " + error.message); } };
-            const handleSaveEditReq = () => { onUpdateReq(req.id, { item: editItem, quantity: editQty, unit: editUnit, category: editCategory, requesterSector: editSector }); setIsEditingReq(false); };
+            const handleSaveEditReq = () => { onUpdateReq(req.id, { item: editItem.trim(), quantity: editQty, unit: editUnit, category: editCategory, requesterSector: editSector }); setIsEditingReq(false); };
             
             const isAdmCategory = CAT_GROUPS.admin.includes(req.category);
             const badgeColor = isAdmCategory ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200';
@@ -335,7 +347,7 @@
             const [editCategory, setEditCategory] = React.useState(req.category);
 
             const handleSave = () => {
-                onEdit(req.id, { item: editItem, quantity: editQty, unit: editUnit, category: editCategory });
+                onEdit(req.id, { item: editItem.trim(), quantity: editQty, unit: editUnit, category: editCategory });
                 setIsEditing(false);
             };
 
@@ -594,7 +606,7 @@
 
             const handleAddItem = async (e) => {
                 e.preventDefault(); if (!newItem.name) return;
-                try { await addDoc(collection(db, 'estoque_lab_2026'), { ...newItem, updatedAt: new Date().toISOString() }); setNewItem({ name: '', category: 'epi', unit: 'un', currentQty: 0, minQty: 0, maxQty: 0, location: '', notes: '' }); setShowForm(false); } catch (e) { console.error(e); }
+                try { await addDoc(collection(db, 'estoque_lab_2026'), { ...newItem, name: newItem.name.trim(), updatedAt: new Date().toISOString() }); setNewItem({ name: '', category: 'epi', unit: 'un', currentQty: 0, minQty: 0, maxQty: 0, location: '', notes: '' }); setShowForm(false); } catch (e) { console.error(e); }
             };
 
             const handleUpdateQty = async (id, itemName, currentQty, change) => {
@@ -766,7 +778,7 @@
                 e.preventDefault(); 
                 if (!newItem.trim() || !quantity) return; 
                 await addDoc(collection(db, 'solicitacoes_lab_2026'), { 
-                    item: newItem, 
+                    item: newItem.trim(), 
                     quantity, 
                     unit, 
                     category, 
