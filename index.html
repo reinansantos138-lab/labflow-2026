@@ -14,13 +14,18 @@
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
 
     <!-- BIBLIOTECAS PARA PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; transition: background-color 0.3s, color 0.3s; }
         .fade-in { animation: fadeIn 0.5s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .modal-overlay { background-color: rgba(0, 0, 0, 0.5); }
@@ -44,6 +49,45 @@
         .theme-carnaval .btn-primary:hover {
             background-color: #9d174d;
         }
+
+        /* --- DARK MODE OVERRIDES --- */
+        .dark body { background-color: #0f172a; color: #f1f5f9; }
+        .dark .bg-white { background-color: #1e293b !important; }
+        .dark .bg-slate-50 { background-color: #0f172a !important; }
+        .dark .text-slate-800 { color: #f8fafc !important; }
+        .dark .text-slate-700 { color: #f1f5f9 !important; }
+        .dark .text-slate-600 { color: #cbd5e1 !important; }
+        .dark .text-slate-500 { color: #94a3b8 !important; }
+        .dark .text-slate-400 { color: #64748b !important; }
+        .dark .border-slate-200, .dark .border-slate-100 { border-color: #334155 !important; }
+        .dark .border-slate-300 { border-color: #475569 !important; }
+        .dark .bg-slate-100 { background-color: #334155 !important; }
+        .dark .bg-slate-200 { background-color: #475569 !important; }
+        .dark input, .dark select, .dark textarea { background-color: #1e293b !important; color: #f8fafc !important; border-color: #475569 !important; }
+        .dark .modal-overlay { background-color: rgba(0, 0, 0, 0.75) !important; }
+        
+        /* Ajustes específicos para badges e banners no Dark Mode */
+        .dark .bg-red-50 { background-color: rgba(127, 29, 29, 0.3) !important; }
+        .dark .border-red-100 { border-color: rgba(127, 29, 29, 0.6) !important; }
+        .dark .text-red-700, .dark .text-red-600 { color: #fca5a5 !important; }
+        
+        .dark .bg-green-50 { background-color: rgba(20, 83, 45, 0.3) !important; }
+        .dark .bg-green-100 { background-color: rgba(20, 83, 45, 0.5) !important; }
+        .dark .text-green-700, .dark .text-green-600 { color: #86efac !important; }
+        
+        .dark .bg-blue-50 { background-color: rgba(30, 58, 138, 0.3) !important; }
+        .dark .bg-blue-100 { background-color: rgba(30, 58, 138, 0.5) !important; }
+        .dark .text-blue-800 { color: #93c5fd !important; }
+        
+        .dark .bg-yellow-50 { background-color: rgba(113, 63, 18, 0.3) !important; }
+        .dark .text-yellow-800 { color: #fde047 !important; }
+        
+        .dark .bg-orange-50 { background-color: rgba(124, 45, 18, 0.3) !important; }
+        .dark .bg-orange-100 { background-color: rgba(124, 45, 18, 0.5) !important; }
+        .dark .text-orange-700 { color: #fdba74 !important; }
+
+        .dark .bg-indigo-50 { background-color: rgba(49, 46, 129, 0.3) !important; }
+        .dark .bg-purple-50 { background-color: rgba(88, 28, 135, 0.3) !important; }
     </style>
 </head>
 <body>
@@ -142,7 +186,9 @@
             Archive: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>,
             Activity: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
             ShoppingCart: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>,
-            BarChart: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+            BarChart: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>,
+            Sun: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>,
+            Moon: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
         };
 
         const getNextMonday = () => { const d = new Date(); d.setDate(d.getDate() + ((1 + 7 - d.getDay()) % 7)); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
@@ -910,6 +956,9 @@
             const [stockMessage, setStockMessage] = React.useState('');
             const [isHistoryLocked, setIsHistoryLocked] = React.useState(true);
 
+            // DARK MODE STATE
+            const [isDarkMode, setIsDarkMode] = React.useState(() => localStorage.getItem('labflow_theme') === 'dark');
+
             // NOVOS ESTADOS PARA O GESTOR (CÓDIGO, LOCAL E SETOR)
             const [itemCodeReq, setItemCodeReq] = React.useState('');
             const [storageLocationReq, setStorageLocationReq] = React.useState('');
@@ -920,6 +969,12 @@
             React.useEffect(() => { if (appUser && (newItem || quantity || notes)) { localStorage.setItem('labflow_draft_v1', JSON.stringify({ item: newItem, quantity, unit, category, notes, isUrgent })); setDraftSaved(true); setTimeout(() => setDraftSaved(false), 2000); } }, [newItem, quantity, unit, category, notes, isUrgent, appUser]);
             React.useEffect(() => { if (!user) return; onSnapshot(query(collection(db, 'solicitacoes_lab_2026'), orderBy('createdAt', 'desc')), s => setRequests(s.docs.filter(d => d.id !== 'NOTICES_CONFIG').map(d => ({ id: d.id, ...d.data() })))); }, [user]);
             
+            // Controle do Dark Mode Global
+            React.useEffect(() => {
+                if (isDarkMode) { document.documentElement.classList.add('dark'); localStorage.setItem('labflow_theme', 'dark'); }
+                else { document.documentElement.classList.remove('dark'); localStorage.setItem('labflow_theme', 'light'); }
+            }, [isDarkMode]);
+
             // --- AUTOFILL INVENTORY FETCH ---
             React.useEffect(() => { 
                 if (!user) return; 
@@ -1093,6 +1148,83 @@
                 doc.save('relatorio.pdf');
             };
             
+            // --- NOVA FUNÇÃO: EXPORTAR CONSUMO MENSAL POR SETOR (COM GRÁFICO) ---
+            const handleExportConsumptionPDF = () => {
+                const d = new Date();
+                const monthName = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                
+                // Filtra os entregues deste mês
+                const currentMonthRequests = requests.filter(r => {
+                    if(r.status !== 'approved') return false;
+                    const reqDate = new Date(r.statusUpdatedAt || r.createdAt);
+                    return reqDate.getMonth() === d.getMonth() && reqDate.getFullYear() === d.getFullYear();
+                });
+
+                if (currentMonthRequests.length === 0) return alert("Nenhum consumo registrado neste mês ainda.");
+
+                const sectorConsumption = {};
+                currentMonthRequests.forEach(r => {
+                    const sector = r.requesterSector || 'OUTROS';
+                    const qty = parseInt(r.quantity) || 0;
+                    sectorConsumption[sector] = (sectorConsumption[sector] || 0) + qty;
+                });
+
+                // Ordena os setores por quem gastou mais
+                const chartData = Object.entries(sectorConsumption).sort((a, b) => b[1] - a[1]);
+
+                const { jsPDF } = window.jspdf; 
+                const doc = new jsPDF('p', 'mm', 'a4');
+                
+                doc.setFontSize(18); 
+                doc.text("Relatório de Consumo Mensal por Setor", 14, 22);
+                doc.setFontSize(10); 
+                doc.text(`Referência: ${monthName.charAt(0).toUpperCase() + monthName.slice(1)}`, 14, 28);
+                doc.text(`Gerado em: ${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR')}`, 14, 33);
+                doc.text(`Gerado por: ${appUser.name} (${appUser.role === 'master' ? 'Gestor' : 'Admin'})`, 14, 38);
+                
+                // Gráfico de Barras renderizado dinamicamente
+                let yPos = 50;
+                const maxVal = chartData[0][1] || 1;
+                const maxBarWidth = 120; // Tamanho máximo da barra em mm
+
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                doc.text("Volume Consumido por Área (Unidades/Itens)", 14, yPos);
+                yPos += 10;
+                
+                doc.setFontSize(10);
+                doc.setFont(undefined, 'normal');
+
+                chartData.forEach(([sector, value]) => {
+                    // Texto do setor à esquerda
+                    doc.text(sector.length > 22 ? sector.substring(0, 22) + '...' : sector, 14, yPos + 4);
+                    
+                    // Desenha a barra preenchida
+                    const barWidth = (value / maxVal) * maxBarWidth;
+                    doc.setFillColor(37, 99, 235); // Cor Azul (blue-600 do Tailwind)
+                    doc.rect(55, yPos, barWidth, 6, 'F');
+                    
+                    // Número no fim da barra
+                    doc.setTextColor(80, 80, 80);
+                    doc.text(value.toString(), 55 + barWidth + 2, yPos + 4);
+                    doc.setTextColor(0, 0, 0); // Reseta a cor para preto
+                    
+                    yPos += 9;
+                });
+
+                // Tabela Detalhada logo abaixo do gráfico
+                yPos += 10;
+                doc.autoTable({
+                    startY: yPos,
+                    head: [["Setor Solicitante", "Volume Total (Soma de Qtd)"]],
+                    body: chartData.map(([s, v]) => [s, v]),
+                    theme: 'striped',
+                    headStyles: { fillColor: [37, 99, 235] }
+                });
+
+                doc.save(`consumo_setores_${String(d.getMonth()+1).padStart(2, '0')}_${d.getFullYear()}.pdf`);
+            };
+
             // --- NOVA FUNÇÃO: ARQUIVAR CICLO MANUAL (ADM) ---
             const handleArchiveCycle = async () => {
                 if (!confirm("Isso moverá todos os itens 'Disponível' ou 'Em Falta' da Administração para o histórico. Confirmar?")) return;
@@ -1181,6 +1313,17 @@
                     <NoticeBanner notices={notices} userRole={appUser.role} onUpdateNotice={handleUpdateNotice} />
                     <header className={`bg-white text-slate-800 shadow-sm border-b border-slate-200 sticky top-0 z-10 ${isCarnival ? 'header-bg' : ''}`}>
                         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center"><div className="flex items-center gap-4 select-none"><InstitutionalLogo />{isCarnival && <span className="bg-pink-100 text-pink-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-200 animate-pulse">🎭 CARNAVAL</span>}<div className="hidden sm:block h-8 w-px bg-slate-200"></div><div><h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1><p className="text-xs text-slate-500 uppercase">{appUser.role === 'master' ? 'Gestor do Sistema' : appUser.role === 'admin' ? 'Administração' : appUser.sector}</p></div></div><div className="flex items-center gap-2">
+                            
+                            {/* Botão do Dark Mode */}
+                            <button onClick={() => setIsDarkMode(!isDarkMode)} className="text-slate-400 hover:text-yellow-500 p-2 transition mr-1" title="Alternar Tema Escuro">
+                                {isDarkMode ? <Icons.Sun /> : <Icons.Moon />}
+                            </button>
+
+                            {/* Novo botão de Relatório Mensal de Consumo (PDF com Gráfico) */}
+                            {(appUser.role === 'admin' || appUser.role === 'master') && (
+                                <button onClick={handleExportConsumptionPDF} className="flex items-center gap-2 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 text-xs font-bold py-2 px-3 rounded transition" title="Gera PDF com gráfico de consumo mensal por Setor"><Icons.BarChart /><span className="hidden sm:inline">PDF Consumo</span></button>
+                            )}
+
                             {appUser.role === 'master' && (
                                 <button onClick={() => handleExportPDF('logistics')} className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold py-2 px-3 rounded transition"><Icons.FileText /><span className="hidden sm:inline">PDF Logística</span></button>
                             )}
