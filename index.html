@@ -959,6 +959,10 @@
             // DARK MODE STATE
             const [isDarkMode, setIsDarkMode] = React.useState(() => localStorage.getItem('labflow_theme') === 'dark');
 
+            // ESTADOS DO RELATÓRIO DE CONSUMO MENSAL
+            const [showConsumptionModal, setShowConsumptionModal] = React.useState(false);
+            const [consumptionMonth, setConsumptionMonth] = React.useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
+
             // NOVOS ESTADOS PARA O GESTOR (CÓDIGO, LOCAL E SETOR)
             const [itemCodeReq, setItemCodeReq] = React.useState('');
             const [storageLocationReq, setStorageLocationReq] = React.useState('');
@@ -1148,81 +1152,116 @@
                 doc.save('relatorio.pdf');
             };
             
-            // --- NOVA FUNÇÃO: EXPORTAR CONSUMO MENSAL POR SETOR (COM GRÁFICO) ---
+            // --- NOVA FUNÇÃO: EXPORTAR CONSUMO MENSAL POR SETOR (COM GRÁFICO E DETALHES) ---
             const handleExportConsumptionPDF = () => {
-                const d = new Date();
-                const monthName = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                if (!consumptionMonth) return;
+                const [yearStr, monthStr] = consumptionMonth.split('-');
+                const targetYear = parseInt(yearStr);
+                const targetMonth = parseInt(monthStr) - 1; // 0-indexed no JS
                 
-                // Filtra os entregues deste mês
+                const monthName = new Date(targetYear, targetMonth, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                
+                // Filtra os entregues do mês selecionado
                 const currentMonthRequests = requests.filter(r => {
                     if(r.status !== 'approved') return false;
                     const reqDate = new Date(r.statusUpdatedAt || r.createdAt);
-                    return reqDate.getMonth() === d.getMonth() && reqDate.getFullYear() === d.getFullYear();
+                    return reqDate.getMonth() === targetMonth && reqDate.getFullYear() === targetYear;
                 });
 
-                if (currentMonthRequests.length === 0) return alert("Nenhum consumo registrado neste mês ainda.");
+                if (currentMonthRequests.length === 0) {
+                    alert("Nenhum consumo registrado neste mês.");
+                    return;
+                }
 
-                const sectorConsumption = {};
+                // Agrupamento de dados: Setor -> Total & Itens
+                const sectorData = {};
                 currentMonthRequests.forEach(r => {
                     const sector = r.requesterSector || 'OUTROS';
                     const qty = parseInt(r.quantity) || 0;
-                    sectorConsumption[sector] = (sectorConsumption[sector] || 0) + qty;
+                    const itemName = r.item || 'Desconhecido';
+                    const unit = r.unit || 'un';
+                    
+                    if (!sectorData[sector]) sectorData[sector] = { total: 0, items: {} };
+                    
+                    sectorData[sector].total += qty;
+                    
+                    const itemKey = `${itemName} (${unit})`;
+                    sectorData[sector].items[itemKey] = (sectorData[sector].items[itemKey] || 0) + qty;
                 });
 
-                // Ordena os setores por quem gastou mais
-                const chartData = Object.entries(sectorConsumption).sort((a, b) => b[1] - a[1]);
+                // Ordena os setores por quem gastou mais (Volume total)
+                const chartData = Object.entries(sectorData).sort((a, b) => b[1].total - a[1].total);
 
                 const { jsPDF } = window.jspdf; 
                 const doc = new jsPDF('p', 'mm', 'a4');
                 
                 doc.setFontSize(18); 
-                doc.text("Relatório de Consumo Mensal por Setor", 14, 22);
+                doc.text("Relatório Detalhado de Consumo por Setor", 14, 22);
                 doc.setFontSize(10); 
                 doc.text(`Referência: ${monthName.charAt(0).toUpperCase() + monthName.slice(1)}`, 14, 28);
-                doc.text(`Gerado em: ${d.toLocaleDateString('pt-BR')} às ${d.toLocaleTimeString('pt-BR')}`, 14, 33);
+                doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 33);
                 doc.text(`Gerado por: ${appUser.name} (${appUser.role === 'master' ? 'Gestor' : 'Admin'})`, 14, 38);
                 
-                // Gráfico de Barras renderizado dinamicamente
+                // Gráfico de Barras
                 let yPos = 50;
-                const maxVal = chartData[0][1] || 1;
-                const maxBarWidth = 120; // Tamanho máximo da barra em mm
+                const maxVal = chartData[0][1].total || 1;
+                const maxBarWidth = 120;
 
                 doc.setFontSize(12);
                 doc.setFont(undefined, 'bold');
-                doc.text("Volume Consumido por Área (Unidades/Itens)", 14, yPos);
+                doc.text("Volume Consumido por Área (Soma de Unidades)", 14, yPos);
                 yPos += 10;
                 
                 doc.setFontSize(10);
                 doc.setFont(undefined, 'normal');
 
-                chartData.forEach(([sector, value]) => {
-                    // Texto do setor à esquerda
+                chartData.forEach(([sector, data]) => {
+                    const value = data.total;
+                    // Texto do setor
                     doc.text(sector.length > 22 ? sector.substring(0, 22) + '...' : sector, 14, yPos + 4);
                     
-                    // Desenha a barra preenchida
+                    // Barra
                     const barWidth = (value / maxVal) * maxBarWidth;
-                    doc.setFillColor(37, 99, 235); // Cor Azul (blue-600 do Tailwind)
+                    doc.setFillColor(37, 99, 235);
                     doc.rect(55, yPos, barWidth, 6, 'F');
                     
-                    // Número no fim da barra
+                    // Valor
                     doc.setTextColor(80, 80, 80);
                     doc.text(value.toString(), 55 + barWidth + 2, yPos + 4);
-                    doc.setTextColor(0, 0, 0); // Reseta a cor para preto
+                    doc.setTextColor(0, 0, 0);
                     
                     yPos += 9;
                 });
 
-                // Tabela Detalhada logo abaixo do gráfico
+                // Tabela Detalhada (Setor -> Itens)
                 yPos += 10;
-                doc.autoTable({
-                    startY: yPos,
-                    head: [["Setor Solicitante", "Volume Total (Soma de Qtd)"]],
-                    body: chartData.map(([s, v]) => [s, v]),
-                    theme: 'striped',
-                    headStyles: { fillColor: [37, 99, 235] }
+                const tableRows = [];
+
+                chartData.forEach(([sector, data]) => {
+                    // Cabeçalho do Setor
+                    tableRows.push([{
+                        content: `▶ SETOR: ${sector.toUpperCase()} (Total Geral: ${data.total})`, 
+                        colSpan: 2, 
+                        styles: { fontStyle: 'bold', fillColor: [241, 245, 249], textColor: [30, 64, 175] }
+                    }]);
+                    
+                    // Itens do setor ordenados do mais consumido para o menos
+                    Object.entries(data.items).sort((a,b) => b[1] - a[1]).forEach(([item, qty]) => {
+                        tableRows.push([item, qty.toString()]);
+                    });
                 });
 
-                doc.save(`consumo_setores_${String(d.getMonth()+1).padStart(2, '0')}_${d.getFullYear()}.pdf`);
+                doc.autoTable({
+                    startY: yPos,
+                    head: [["Item Solicitado", "Quantidade"]],
+                    body: tableRows,
+                    theme: 'grid',
+                    headStyles: { fillColor: [37, 99, 235] },
+                    styles: { fontSize: 9 }
+                });
+
+                doc.save(`consumo_detalhado_${monthStr}_${yearStr}.pdf`);
+                setShowConsumptionModal(false);
             };
 
             // --- NOVA FUNÇÃO: ARQUIVAR CICLO MANUAL (ADM) ---
@@ -1319,9 +1358,9 @@
                                 {isDarkMode ? <Icons.Sun /> : <Icons.Moon />}
                             </button>
 
-                            {/* Novo botão de Relatório Mensal de Consumo (PDF com Gráfico) */}
+                            {/* Novo botão de Relatório Mensal de Consumo (Abre Modal) */}
                             {(appUser.role === 'admin' || appUser.role === 'master') && (
-                                <button onClick={handleExportConsumptionPDF} className="flex items-center gap-2 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 text-xs font-bold py-2 px-3 rounded transition" title="Gera PDF com gráfico de consumo mensal por Setor"><Icons.BarChart /><span className="hidden sm:inline">PDF Consumo</span></button>
+                                <button onClick={() => setShowConsumptionModal(true)} className="flex items-center gap-2 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 text-xs font-bold py-2 px-3 rounded transition" title="Gera PDF com gráfico de consumo e itens detalhados por Setor"><Icons.BarChart /><span className="hidden sm:inline">PDF Consumo</span></button>
                             )}
 
                             {appUser.role === 'master' && (
@@ -1504,7 +1543,29 @@
                         {view === 'purchases' && <PurchaseRequestView userRole={appUser.role} />}
                         {view === 'dashboard' && <DashboardView requests={requests} />}
                     </main>
+                    
+                    {/* MODAL DE ITEM INDISPONÍVEL */}
                     {modalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay fade-in"><div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm"><h3 className="text-lg font-bold text-red-600 flex items-center gap-2 mb-4"><Icons.PackageX /> Item Indisponível</h3><p className="text-sm text-slate-600 mb-2">Informe o motivo ou previsão:</p><textarea value={stockMessage} onChange={(e) => setStockMessage(e.target.value)} placeholder="Ex: Em processo de compra..." className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none h-24 text-sm mb-4"></textarea><div className="flex gap-2"><button onClick={() => setModalOpen(false)} className="flex-1 py-2 border border-slate-300 rounded-lg text-slate-600 font-semibold hover:bg-slate-50">Cancelar</button><button onClick={confirmOutOfStock} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow">Confirmar</button></div></div></div>)}
+                    
+                    {/* MODAL DE SELEÇÃO DE MÊS PARA CONSUMO */}
+                    {showConsumptionModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay fade-in">
+                            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm">
+                                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4"><Icons.BarChart /> Gerar PDF de Consumo</h3>
+                                <p className="text-sm text-slate-600 mb-4">Selecione o mês/ano para visualizar o relatório detalhado por setores e itens:</p>
+                                <input 
+                                    type="month" 
+                                    value={consumptionMonth} 
+                                    onChange={(e) => setConsumptionMonth(e.target.value)} 
+                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm mb-6"
+                                />
+                                <div className="flex gap-2">
+                                    <button onClick={() => setShowConsumptionModal(false)} className="flex-1 py-2 border border-slate-300 rounded-lg text-slate-600 font-semibold hover:bg-slate-50">Cancelar</button>
+                                    <button onClick={handleExportConsumptionPDF} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow">Gerar PDF</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
