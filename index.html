@@ -141,7 +141,8 @@
             Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
             Archive: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>,
             Activity: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
-            ShoppingCart: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            ShoppingCart: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>,
+            BarChart: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
         };
 
         const getNextMonday = () => { const d = new Date(); d.setDate(d.getDate() + ((1 + 7 - d.getDay()) % 7)); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
@@ -172,6 +173,9 @@
             }
 
             if (!stockItem) {
+                if (origin === 'reposicao_logistica') {
+                    throw new Error('NOT_IN_STOCK');
+                }
                 if (origin === 'pedido') throw new Error(`Item "${itemName}" não encontrado no estoque. Verifique espaços no nome ou cadastre-o primeiro.`);
                 return;
             }
@@ -272,7 +276,7 @@
             );
         };
 
-        const RequestCard = ({ req, role, onDelete, onUpdateStatus, onOutOfStock, onSaveStockInfo, onApprovePartial, onUpdateReq, currentUser }) => {
+        const RequestCard = ({ req, role, onDelete, onUpdateStatus, onOutOfStock, onSaveStockInfo, onApprovePartial, onUpdateReq, onReceiveLogistics, currentUser }) => {
             const [itemCode, setItemCode] = React.useState(req.itemCode || '');
             const [storageLocation, setStorageLocation] = React.useState(req.storageLocation || '');
             const [hasChanges, setHasChanges] = React.useState(false);
@@ -312,22 +316,32 @@
                             </div>
                             {role !== 'lab_tech' && (
                                 <div className="flex flex-row md:flex-col gap-2 justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-4 min-w-[140px]">
-                                    {req.status === 'pending' ? (
-                                        !showPartialInput ? (
-                                            <>
-                                                <button onClick={() => handleStatusAction('approved')} className="bg-green-100 text-green-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-green-200 flex items-center justify-center gap-2" title="Entregar Total (Baixa Estoque)"><Icons.CheckCircle2 /> TOTAL</button>
-                                                <button onClick={() => setShowPartialInput(true)} className="bg-orange-100 text-orange-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-orange-200 flex items-center justify-center gap-2" title="Entregar Parcial (Baixa Estoque)"><Icons.Scissors /> PARCIAL</button>
-                                                <button onClick={() => onOutOfStock(req.id)} className="bg-red-100 text-red-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-red-200 flex items-center justify-center gap-2"><Icons.PackageX /> EM FALTA</button>
-                                            </>
+                                    {role === 'master' && CAT_GROUPS.logistics.includes(req.category) ? (
+                                        req.status === 'pending' ? (
+                                            <button onClick={() => onReceiveLogistics(req.id, req.item, req.quantity, req.unit)} className="bg-blue-600 text-white py-2 px-3 rounded-lg text-xs font-bold hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm transition">
+                                                <Icons.Box /> DAR BAIXA
+                                            </button>
                                         ) : (
-                                            <div className="flex flex-col gap-2 animate-in fade-in">
-                                                <div className="text-xs font-bold text-slate-500 text-center">Qtd Real?</div>
-                                                <input type="number" value={partialQty} onChange={(e) => setPartialQty(e.target.value)} className="w-full p-1 border rounded text-center text-sm font-bold"/>
-                                                <div className="flex gap-1"><button onClick={() => setShowPartialInput(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded py-1 text-xs">X</button><button onClick={handlePartialConfirm} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded py-1 text-xs font-bold">OK</button></div>
-                                            </div>
+                                            <div className="text-center"><span className="text-sm font-bold text-green-600">RECEBIDO</span></div>
                                         )
                                     ) : (
-                                        <div className="text-center"><span className={`text-sm font-bold ${req.status === 'approved' ? 'text-green-600' : 'text-red-600'}`}>{req.status === 'approved' ? 'SEPARADO' : 'INDISPONÍVEL'}</span><button onClick={() => handleStatusAction('pending')} className="block mx-auto text-xs text-slate-400 underline mt-1">Alterar</button></div>
+                                        req.status === 'pending' ? (
+                                            !showPartialInput ? (
+                                                <>
+                                                    <button onClick={() => handleStatusAction('approved')} className="bg-green-100 text-green-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-green-200 flex items-center justify-center gap-2" title="Entregar Total (Baixa Estoque)"><Icons.CheckCircle2 /> TOTAL</button>
+                                                    <button onClick={() => setShowPartialInput(true)} className="bg-orange-100 text-orange-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-orange-200 flex items-center justify-center gap-2" title="Entregar Parcial (Baixa Estoque)"><Icons.Scissors /> PARCIAL</button>
+                                                    <button onClick={() => onOutOfStock(req.id)} className="bg-red-100 text-red-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-red-200 flex items-center justify-center gap-2"><Icons.PackageX /> EM FALTA</button>
+                                                </>
+                                            ) : (
+                                                <div className="flex flex-col gap-2 animate-in fade-in">
+                                                    <div className="text-xs font-bold text-slate-500 text-center">Qtd Real?</div>
+                                                    <input type="number" value={partialQty} onChange={(e) => setPartialQty(e.target.value)} className="w-full p-1 border rounded text-center text-sm font-bold"/>
+                                                    <div className="flex gap-1"><button onClick={() => setShowPartialInput(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded py-1 text-xs">X</button><button onClick={handlePartialConfirm} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded py-1 text-xs font-bold">OK</button></div>
+                                                </div>
+                                            )
+                                        ) : (
+                                            <div className="text-center"><span className={`text-sm font-bold ${req.status === 'approved' ? 'text-green-600' : 'text-red-600'}`}>{req.status === 'approved' ? 'SEPARADO' : 'INDISPONÍVEL'}</span><button onClick={() => handleStatusAction('pending')} className="block mx-auto text-xs text-slate-400 underline mt-1">Alterar</button></div>
+                                        )
                                     )}
                                 </div>
                             )}
@@ -690,6 +704,190 @@
             );
         };
 
+        const DashboardView = ({ requests }) => {
+            const stats = React.useMemo(() => {
+                let totalRequests = requests.length;
+                let approved = 0;
+                let outOfStock = 0;
+                let pending = 0;
+                let totalFulfillmentTimeMs = 0;
+                let fulfilledCount = 0;
+
+                const itemCounts = {};
+                const sectorCounts = {};
+                const monthCounts = {};
+
+                requests.forEach(r => {
+                    // Contagem de Status e Tempo de Atendimento
+                    if (r.status === 'approved') {
+                        approved++;
+                        if (r.statusUpdatedAt && r.createdAt) {
+                            const diff = new Date(r.statusUpdatedAt) - new Date(r.createdAt);
+                            if (diff > 0) {
+                                totalFulfillmentTimeMs += diff;
+                                fulfilledCount++;
+                            }
+                        }
+                    } else if (r.status === 'out_of_stock') {
+                        outOfStock++;
+                    } else {
+                        pending++;
+                    }
+
+                    // Contagem de Itens (Volume consumido)
+                    const qty = parseInt(r.quantity) || 1;
+                    const itemName = r.item ? r.item.trim() : 'Desconhecido';
+                    itemCounts[itemName] = (itemCounts[itemName] || 0) + qty;
+
+                    // Contagem por Setor (Volume de Pedidos)
+                    const sector = r.requesterSector || 'Outros';
+                    sectorCounts[sector] = (sectorCounts[sector] || 0) + 1;
+
+                    // Contagem Mensal
+                    if (r.createdAt) {
+                        const d = new Date(r.createdAt);
+                        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                        const monthLabel = d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+                        if (!monthCounts[monthKey]) monthCounts[monthKey] = { label: monthLabel, count: 0 };
+                        monthCounts[monthKey].count++;
+                    }
+                });
+
+                // Formatação do Tempo Médio
+                let avgTimeLabel = "-";
+                if (fulfilledCount > 0) {
+                    const avgMs = totalFulfillmentTimeMs / fulfilledCount;
+                    const hours = avgMs / (1000 * 60 * 60);
+                    if (hours < 1) avgTimeLabel = `${Math.round(hours * 60)} min`;
+                    else if (hours < 24) avgTimeLabel = `${Math.round(hours)}h`;
+                    else avgTimeLabel = `${(hours / 24).toFixed(1)} dias`;
+                }
+
+                // Rankings e Ordenação
+                const topItems = Object.entries(itemCounts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count).slice(0, 5);
+                const topSectors = Object.entries(sectorCounts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count);
+                const monthlyData = Object.keys(monthCounts).sort().map(k => monthCounts[k]);
+
+                // Valores Máximos para os gráficos de barra
+                const maxMonthCount = Math.max(...monthlyData.map(m => m.count), 1);
+                const maxSectorCount = Math.max(...topSectors.map(s => s.count), 1);
+                const maxItemCount = Math.max(...topItems.map(i => i.count), 1);
+
+                return {
+                    totalRequests, approved, outOfStock, pending, avgTimeLabel,
+                    topItems, topSectors, monthlyData,
+                    maxMonthCount, maxSectorCount, maxItemCount
+                };
+            }, [requests]);
+
+            const totalFinished = stats.approved + stats.outOfStock;
+            const approvedRate = totalFinished > 0 ? Math.round((stats.approved / totalFinished) * 100) : 0;
+            const outOfStockRate = totalFinished > 0 ? Math.round((stats.outOfStock / totalFinished) * 100) : 0;
+
+            return (
+                <div className="animate-in fade-in space-y-6">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-4 rounded-xl mb-6">
+                        <h3 className="text-blue-800 font-black flex items-center gap-2"><Icons.BarChart /> Dashboard Analítico</h3>
+                        <p className="text-xs text-blue-600 mt-1">Visão gerencial consolidada de todos os registros do LabFlow.</p>
+                    </div>
+
+                    {/* KPIs Principais */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                            <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Total Pedidos</div>
+                            <div className="text-4xl font-black text-slate-800">{stats.totalRequests}</div>
+                        </div>
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                            <div className="text-green-500 text-xs font-bold uppercase tracking-wider mb-2">Itens Entregues</div>
+                            <div className="text-4xl font-black text-green-600">{stats.approved}</div>
+                        </div>
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                            <div className="text-red-400 text-xs font-bold uppercase tracking-wider mb-2">Itens Em Falta</div>
+                            <div className="text-4xl font-black text-red-600">{stats.outOfStock}</div>
+                        </div>
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                            <div className="text-blue-400 text-xs font-bold uppercase tracking-wider mb-2">Tempo Médio Atend.</div>
+                            <div className="text-4xl font-black text-blue-600">{stats.avgTimeLabel}</div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Taxa de Atendimento */}
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-center">
+                            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">Taxa de Conversão (Finalizados)</h3>
+                            <div className="flex h-8 rounded-full overflow-hidden mb-4 bg-slate-100 shadow-inner">
+                                <div style={{width: `${approvedRate}%`}} className="bg-green-500 h-full flex items-center justify-center text-xs text-white font-bold transition-all">{approvedRate > 5 ? `${approvedRate}%` : ''}</div>
+                                <div style={{width: `${outOfStockRate}%`}} className="bg-red-500 h-full flex items-center justify-center text-xs text-white font-bold transition-all">{outOfStockRate > 5 ? `${outOfStockRate}%` : ''}</div>
+                            </div>
+                            <div className="flex justify-around text-sm font-semibold mt-2">
+                                <div className="text-green-700 flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500 shadow-sm"></div> {stats.approved} Entregues</div>
+                                <div className="text-red-700 flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500 shadow-sm"></div> {stats.outOfStock} Em Falta</div>
+                            </div>
+                        </div>
+
+                        {/* Evolução Mensal */}
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.Activity /> Pedidos por Mês</h3>
+                            <div className="flex items-end h-32 gap-3 pb-2 border-b border-slate-100">
+                                {stats.monthlyData.length === 0 && <div className="text-slate-400 text-sm m-auto">Aguardando dados históricos...</div>}
+                                {stats.monthlyData.map((m, i) => (
+                                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 group h-full">
+                                        <div className="text-xs font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity mb-1">{m.count}</div>
+                                        <div style={{height: `${(m.count / stats.maxMonthCount) * 100}%`}} className="w-full bg-blue-100 group-hover:bg-blue-500 rounded-t-md transition-all min-h-[4px]"></div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex items-end gap-3 mt-2">
+                                {stats.monthlyData.map((m, i) => (
+                                    <div key={i} className="flex-1 text-[10px] text-slate-500 font-semibold uppercase truncate text-center">{m.label.split(' de ')[0]}</div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Ranking de Setores */}
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.Building2 /> Setores que Mais Consomem</h3>
+                            <div className="space-y-5">
+                                {stats.topSectors.length === 0 && <div className="text-slate-400 text-sm">Sem dados.</div>}
+                                {stats.topSectors.map((sector, i) => (
+                                    <div key={i}>
+                                        <div className="flex justify-between text-sm mb-1.5">
+                                            <span className="font-bold text-slate-700 flex items-center gap-2"><span className="text-slate-400 text-xs w-4">{i+1}º</span> {sector.name}</span>
+                                            <span className="font-bold text-purple-600">{sector.count} ped.</span>
+                                        </div>
+                                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                            <div style={{width: `${(sector.count / stats.maxSectorCount) * 100}%`}} className="bg-purple-500 h-full rounded-full transition-all"></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Itens Mais Solicitados */}
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.ShoppingCart /> Top 5 Itens (Volume)</h3>
+                            <div className="space-y-5">
+                                {stats.topItems.length === 0 && <div className="text-slate-400 text-sm">Sem dados.</div>}
+                                {stats.topItems.map((item, i) => (
+                                    <div key={i}>
+                                        <div className="flex justify-between text-sm mb-1.5">
+                                            <span className="font-bold text-slate-700 truncate max-w-[80%] flex items-center gap-2"><span className="text-slate-400 text-xs w-4">{i+1}º</span> {item.name}</span>
+                                            <span className="font-bold text-blue-600">{item.count} unid.</span>
+                                        </div>
+                                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                            <div style={{width: `${(item.count / stats.maxItemCount) * 100}%`}} className="bg-blue-500 h-full rounded-full transition-all"></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const App = () => {
             const [user, setUser] = React.useState(null);
             const [appUser, setAppUser] = React.useState(null);
@@ -810,6 +1008,30 @@
             const confirmOutOfStock = async () => { if (!selectedReqId) return; await updateDoc(doc(db, 'solicitacoes_lab_2026', selectedReqId), { status: 'out_of_stock', statusUpdatedAt: new Date().toISOString(), logisticsMessage: stockMessage || '' }); setModalOpen(false); };
             const updateStatus = async (id, s) => { const d = { status: s, statusUpdatedAt: new Date().toISOString() }; if (s === 'approved' || s === 'pending') d.logisticsMessage = ''; await updateDoc(doc(db, 'solicitacoes_lab_2026', id), d); };
             const deleteRequest = async (id) => { if (confirm('Excluir?')) await deleteDoc(doc(db, 'solicitacoes_lab_2026', id)); };
+            
+            const handleReceiveLogistics = async (id, item, quantity, unit) => {
+                if (!confirm(`Confirmar o recebimento de ${quantity} ${unit} de ${item}?`)) return;
+                
+                let msg = 'Recebido e incorporado ao estoque.';
+                try {
+                    await processStockTransaction(item, quantity, 'in', 'reposicao_logistica', appUser, id, `Reposição recebida do Almoxarifado Central`);
+                } catch (e) {
+                    if (e.message === 'NOT_IN_STOCK') {
+                        msg = 'Recebido e arquivado (Item não monitorado no estoque).';
+                    } else {
+                        console.error(e);
+                        alert("Aviso de Estoque: " + e.message);
+                    }
+                }
+
+                await updateDoc(doc(db, 'solicitacoes_lab_2026', id), {
+                    status: 'approved',
+                    isArchived: true,
+                    statusUpdatedAt: new Date().toISOString(),
+                    logisticsMessage: msg
+                });
+            };
+
             const handleExportPDF = (type = 'all') => {
                 const d7 = new Date(); d7.setDate(d7.getDate() - 7);
                 let data = requests.filter(r => new Date(r.createdAt) > d7);
@@ -881,26 +1103,36 @@
                 try { await batch.commit(); alert(`${itemsToArchive.length} itens movidos para o histórico.`); } catch(e) { console.error(e); alert("Erro ao arquivar."); }
             };
 
-            const { activeList, historyList } = React.useMemo(() => {
-                if (!appUser) return { activeList: [], historyList: [] };
+            const { activeList, historyList, masterHistoryList } = React.useMemo(() => {
+                if (!appUser) return { activeList: [], historyList: [], masterHistoryList: [] };
                 let list = requests.filter(r => r.item.toLowerCase().includes(searchTerm.toLowerCase()) || r.requesterName.toLowerCase().includes(searchTerm.toLowerCase()));
                 if (appUser.role === 'admin') list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
                 
-                const active = [], history = [];
+                const active = [], history = [], masterHistory = [];
                 list.forEach(r => {
-                    if (r.isArchived) {
-                        history.push(r);
-                    } else {
-                        const finished = r.status === 'approved' || r.status === 'out_of_stock';
-                        if (CAT_GROUPS.admin.includes(r.category)) {
-                             active.push(r); 
+                    const isLogistics = CAT_GROUPS.logistics.includes(r.category);
+                    
+                    if (isLogistics) {
+                        if (r.isArchived) {
+                            masterHistory.push(r);
                         } else {
-                            const recent = isRecent(r.statusUpdatedAt || r.createdAt, 7);
-                            if (r.status === 'pending' || (finished && recent)) active.push(r); else history.push(r);
+                            active.push(r);
+                        }
+                    } else {
+                        if (r.isArchived) {
+                            history.push(r);
+                        } else {
+                            const finished = r.status === 'approved' || r.status === 'out_of_stock';
+                            if (appUser.role === 'admin' || appUser.role === 'master') {
+                                active.push(r); 
+                            } else {
+                                const recent = isRecent(r.statusUpdatedAt || r.createdAt, 7);
+                                if (r.status === 'pending' || (finished && recent)) active.push(r); else history.push(r);
+                            }
                         }
                     }
                 });
-                return { activeList: active, historyList: history };
+                return { activeList: active, historyList: history, masterHistoryList: masterHistory };
             }, [requests, searchTerm, appUser]);
 
             const groupedHistoryArray = React.useMemo(() => {
@@ -922,6 +1154,23 @@
                 return groups.map(g => ({ month: g, ...map.get(g) }));
             }, [historyList]);
 
+            const groupedMasterHistoryArray = React.useMemo(() => {
+                const groups = [];
+                const map = new Map();
+                masterHistoryList.forEach(req => {
+                    const d = new Date(req.createdAt);
+                    const monthYear = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                    const capitalizedStr = monthYear.charAt(0).toUpperCase() + monthYear.slice(1);
+                    
+                    if (!map.has(capitalizedStr)) {
+                        map.set(capitalizedStr, { items: [] });
+                        groups.push(capitalizedStr);
+                    }
+                    map.get(capitalizedStr).items.push(req);
+                });
+                return groups.map(g => ({ month: g, ...map.get(g) }));
+            }, [masterHistoryList]);
+
             const isCarnival = isCarnivalSeason();
 
             if (loading) return <div className="flex h-screen items-center justify-center text-slate-500">Conectando...</div>;
@@ -941,7 +1190,15 @@
                         <div className={`bg-blue-600 px-4 py-2 text-center text-xs sm:text-sm font-medium text-white shadow-inner flex justify-center gap-6 ${isCarnival ? 'bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600' : ''}`}><span>🧪 Lab: <span className="text-yellow-300 font-bold">{getNextMonday()}</span></span><span>📎 Escritório: <span className="text-yellow-300 font-bold">{getNextOfficeDay()}</span></span></div>
                     </header>
                     <main className="max-w-5xl mx-auto px-4 py-6">
-                        <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto"><button onClick={() => setView('active')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap ${view === 'active' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}>Pedidos em Aberto</button><button onClick={() => setView('history')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'history' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.History /> Histórico</button>{(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('inventory')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'inventory' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Box /> Controle de Estoque</button>}{(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('movements')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'movements' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Activity /> Movimentações</button>}{(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('purchases')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'purchases' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.ShoppingCart /> Solicitação de Compras</button>}</div>
+                        <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto">
+                            <button onClick={() => setView('active')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap ${view === 'active' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}>Pedidos em Aberto</button>
+                            <button onClick={() => setView('history')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'history' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.History /> Histórico {appUser.role === 'master' ? 'Admin' : ''}</button>
+                            {(appUser.role === 'master') && <button onClick={() => setView('history_master')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'history_master' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Archive /> Histórico do Gestor</button>}
+                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('inventory')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'inventory' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Box /> Controle de Estoque</button>}
+                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('movements')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'movements' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Activity /> Movimentações</button>}
+                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('purchases')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'purchases' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.ShoppingCart /> Solicitação de Compras</button>}
+                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('dashboard')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'dashboard' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.BarChart /> Dashboard</button>}
+                        </div>
                         {view === 'active' && (
                             <>
                                 {(appUser.role === 'lab_tech' || appUser.role === 'master') && (
@@ -1021,7 +1278,7 @@
                                         )}
                                     </div>
                                 </div>
-                                <div className="space-y-3">{activeList.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhum pedido pendente ou recente.</div> : activeList.map((req) => (<RequestCard key={req.id} req={req} role={appUser.role} onDelete={deleteRequest} onUpdateStatus={updateStatus} onOutOfStock={handleOutOfStockClick} onSaveStockInfo={handleSaveStockInfo} onApprovePartial={handleApprovePartial} onUpdateReq={handleUpdateReq} currentUser={appUser} />))}</div>
+                                <div className="space-y-3">{activeList.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhum pedido pendente ou recente.</div> : activeList.map((req) => (<RequestCard key={req.id} req={req} role={appUser.role} onDelete={deleteRequest} onUpdateStatus={updateStatus} onOutOfStock={handleOutOfStockClick} onSaveStockInfo={handleSaveStockInfo} onApprovePartial={handleApprovePartial} onUpdateReq={handleUpdateReq} onReceiveLogistics={handleReceiveLogistics} currentUser={appUser} />))}</div>
                             </>
                         )}
                         {view === 'history' && (
@@ -1070,9 +1327,39 @@
                                 )}
                             </div>
                         )}
+                        {view === 'history_master' && (
+                            <div className="space-y-8 animate-in fade-in">
+                                <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-4">
+                                    <div className="relative w-full md:w-96">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
+                                        <input type="text" placeholder="Buscar no histórico do gestor..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
+                                    </div>
+                                    <button 
+                                        onClick={() => setIsHistoryLocked(!isHistoryLocked)} 
+                                        className={`px-4 py-2 rounded-lg font-bold shadow flex items-center gap-2 transition ${isHistoryLocked ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}
+                                    >
+                                        {isHistoryLocked ? <><Icons.Lock /> Travado</> : <><Icons.Unlock /> Destravado</>}
+                                    </button>
+                                </div>
+                                
+                                {groupedMasterHistoryArray.length === 0 ? (
+                                    <div className="text-center text-slate-400 py-10">Nenhum item recebido no histórico logístico.</div>
+                                ) : (
+                                    groupedMasterHistoryArray.map(group => (
+                                        <div key={group.month} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                            <h2 className="text-xl font-black text-blue-800 mb-4 capitalize border-b border-slate-200 pb-2">{group.month}</h2>
+                                            <div className="space-y-3">
+                                                {group.items.map(req => (<HistoryRow key={req.id} req={req} onMarkRestocked={handleMarkRestocked} isLocked={isHistoryLocked} onDelete={deleteRequest} onEdit={handleUpdateReq} />))}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
                         {view === 'inventory' && <InventoryView userRole={appUser.role} currentUser={appUser} />}
                         {view === 'movements' && <MovementsView userRole={appUser.role} />}
                         {view === 'purchases' && <PurchaseRequestView userRole={appUser.role} />}
+                        {view === 'dashboard' && <DashboardView requests={requests} />}
                     </main>
                     {modalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay fade-in"><div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm"><h3 className="text-lg font-bold text-red-600 flex items-center gap-2 mb-4"><Icons.PackageX /> Item Indisponível</h3><p className="text-sm text-slate-600 mb-2">Informe o motivo ou previsão:</p><textarea value={stockMessage} onChange={(e) => setStockMessage(e.target.value)} placeholder="Ex: Em processo de compra..." className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none h-24 text-sm mb-4"></textarea><div className="flex gap-2"><button onClick={() => setModalOpen(false)} className="flex-1 py-2 border border-slate-300 rounded-lg text-slate-600 font-semibold hover:bg-slate-50">Cancelar</button><button onClick={confirmOutOfStock} className="flex-1 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 shadow">Confirmar</button></div></div></div>)}
                 </div>
