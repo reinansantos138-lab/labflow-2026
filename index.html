@@ -1277,17 +1277,25 @@
             const { activeList, historyList, masterHistoryList } = React.useMemo(() => {
                 if (!appUser) return { activeList: [], historyList: [], masterHistoryList: [] };
                 let list = requests.filter(r => r.item.toLowerCase().includes(searchTerm.toLowerCase()) || r.requesterName.toLowerCase().includes(searchTerm.toLowerCase()));
-                if (appUser.role === 'admin') list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
+                
+                if (appUser.role === 'admin') {
+                    list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
+                } else if (appUser.role === 'lab_tech') {
+                    // Oculta integralmente itens de logística/almoxarifado para os técnicos
+                    list = list.filter(r => !CAT_GROUPS.logistics.includes(r.category));
+                }
                 
                 const active = [], history = [], masterHistory = [];
                 list.forEach(r => {
                     const isLogistics = CAT_GROUPS.logistics.includes(r.category);
                     
                     if (isLogistics) {
-                        if (r.isArchived) {
+                        // Itens de Logística que já foram finalizados ou arquivados vão direto para o Histórico do Gestor
+                        const finished = r.status === 'approved' || r.status === 'out_of_stock';
+                        if (r.isArchived || finished) {
                             masterHistory.push(r);
                         } else {
-                            active.push(r);
+                            if (appUser.role === 'master') active.push(r);
                         }
                     } else {
                         if (r.isArchived) {
