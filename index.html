@@ -193,7 +193,7 @@
         };
 
         const getNextMonday = () => { const d = new Date(); d.setDate(d.getDate() + ((1 + 7 - d.getDay()) % 7)); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
-        const getNextOfficeDay = () => { const d = new Date(); const day = d.getDay(); let add = 0; if (day < 3 && day >= 1) { add = 3 - day; } else { add = (1 + 7 - day) % 7; if(add === 0) add = 7; } d.setDate(d.getDate() + add); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
+        const getNextOfficeDay = () => { const d = new Date(); const day = d.getDay(); let add = (3 - day + 7) % 7; if(add === 0) add = 7; d.setDate(d.getDate() + add); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
         const formatDate = (isoString) => { if (!isoString) return '-'; const date = new Date(isoString); return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
         const isRecent = (dateString, days = 7) => { if (!dateString) return false; const date = new Date(dateString); const now = new Date(); const diffTime = Math.abs(now - date); return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) <= days; };
         
@@ -393,7 +393,7 @@
                                 </div>
                             )}
                             {(role === 'lab_tech' || role === 'master') && req.status === 'pending' && role !== 'admin' && (<div className="flex items-center justify-end md:justify-center min-w-[50px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pl-4"><button onClick={() => onDelete(req.id)} className="ml-2 text-slate-300 hover:text-red-500"><Icons.Trash2 /></button></div>)}
-                            {role === 'lab_tech' && req.status !== 'pending' && (<div className="flex items-center justify-end md:justify-center min-w-[100px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pl-4">{req.status === 'approved' && <div className="text-center"><span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-1 rounded">DISPONÍVEL</span><div className="text-[10px] text-slate-400 mt-1">Retirar na 2ª</div></div>}{req.status === 'out_of_stock' && <span className="text-red-600 text-xs font-bold bg-red-50 px-2 py-1 rounded">EM FALTA</span>}</div>)}
+                            {role === 'lab_tech' && req.status !== 'pending' && (<div className="flex items-center justify-end md:justify-center min-w-[100px] border-t md:border-t-0 md:border-l border-slate-100 pt-2 md:pl-4">{req.status === 'approved' && <div className="text-center"><span className="text-green-600 text-xs font-bold bg-green-50 px-2 py-1 rounded">DISPONÍVEL</span><div className="text-[10px] text-slate-400 mt-1">Retirar na {CAT_GROUPS.admin.includes(req.category) ? '4ª' : '2ª'}</div></div>}{req.status === 'out_of_stock' && <span className="text-red-600 text-xs font-bold bg-red-50 px-2 py-1 rounded">EM FALTA</span>}</div>)}
                         </div>
                     )}
                 </div>
@@ -1464,22 +1464,36 @@
                         <div className={`bg-blue-600 px-4 py-2 text-center text-xs sm:text-sm font-medium text-white shadow-inner flex justify-center gap-6 ${isCarnival ? 'bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600' : ''}`}><span>🧪 Lab: <span className="text-yellow-300 font-bold">{getNextMonday()}</span></span><span>📎 Escritório: <span className="text-yellow-300 font-bold">{getNextOfficeDay()}</span></span></div>
                     </header>
                     <main className="max-w-5xl mx-auto px-4 py-6">
-                        <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto">
-                            <button onClick={() => setView('active')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap ${view === 'active' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}>Pedidos em Aberto</button>
-                            <button onClick={() => setView('history')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'history' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.History /> Histórico {appUser.role === 'master' ? 'Admin' : ''}</button>
-                            {(appUser.role === 'master') && <button onClick={() => setView('history_master')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'history_master' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Archive /> Histórico do Gestor</button>}
-                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('inventory')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'inventory' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Box /> Controle de Estoque</button>}
-                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('movements')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'movements' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.Activity /> Movimentações</button>}
-                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('purchases')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'purchases' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.ShoppingCart /> Solicitação de Compras</button>}
+                        <div className="flex flex-wrap gap-2 mb-6">
+                            <button onClick={() => setView('active')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'active' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                                <Icons.ClipboardList /> Pedidos em Aberto
+                            </button>
+                            <button onClick={() => setView('history')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'history' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                                <Icons.History /> Histórico {appUser.role === 'master' ? 'Admin' : ''}
+                            </button>
+                            {(appUser.role === 'master') && <button onClick={() => setView('history_master')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'history_master' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                                <Icons.Archive /> Histórico do Gestor
+                            </button>}
+                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('inventory')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'inventory' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                                <Icons.Box /> Controle de Estoque
+                            </button>}
+                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('movements')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'movements' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                                <Icons.Activity /> Movimentações
+                            </button>}
+                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('purchases')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'purchases' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                                <Icons.ShoppingCart /> Solicitação de Compras
+                            </button>}
                             {(appUser.role === 'admin' || appUser.role === 'master') && (
-                                <button onClick={() => setView('suggestions')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'suggestions' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}>
+                                <button onClick={() => setView('suggestions')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'suggestions' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
                                     <Icons.Lightbulb /> Sugestões
                                     {suggestions.filter(s => s.status === 'pending').length > 0 && (
-                                        <span className="bg-yellow-500 text-white rounded-full px-1.5 py-0.5 text-[10px] leading-none">{suggestions.filter(s => s.status === 'pending').length}</span>
+                                        <span className="bg-yellow-500 text-white rounded-full px-1.5 py-0.5 text-[10px] leading-none ml-1">{suggestions.filter(s => s.status === 'pending').length}</span>
                                     )}
                                 </button>
                             )}
-                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('dashboard')} className={`pb-2 px-1 text-sm font-bold border-b-2 transition whitespace-nowrap flex items-center gap-2 ${view === 'dashboard' ? (isCarnival ? 'border-pink-500 text-pink-600' : 'border-blue-600 text-blue-600') : 'border-transparent text-slate-500'}`}><Icons.BarChart /> Dashboard</button>}
+                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('dashboard')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'dashboard' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                                <Icons.BarChart /> Dashboard
+                            </button>}
                         </div>
                         {view === 'active' && (
                             <>
