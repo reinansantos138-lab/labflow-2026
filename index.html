@@ -1034,6 +1034,9 @@
             const [stockMessage, setStockMessage] = React.useState('');
             const [isHistoryLocked, setIsHistoryLocked] = React.useState(true);
 
+            // ESTADOS PARA SUGESTÃO
+            const [showSuggestionModal, setShowSuggestionModal] = React.useState(false);
+
             // DARK MODE STATE
             const [isDarkMode, setIsDarkMode] = React.useState(() => localStorage.getItem('labflow_theme') === 'dark');
             
