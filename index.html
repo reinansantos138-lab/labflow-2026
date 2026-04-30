@@ -316,7 +316,7 @@
             const getStatusColor = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'bg-red-100 text-red-700 border-red-200'; if (cur >= minimum && cur <= minimum * 1.2) return 'bg-yellow-100 text-yellow-800 border-yellow-200'; return 'bg-green-100 text-green-700 border-green-200'; };
             const getStatusLabel = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'Crítico'; if (cur >= minimum && cur <= minimum * 1.2) return 'Atenção'; return 'OK'; };
 
-            if (isEditing) return (<div className="bg-white p-4 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden"><div className="flex flex-col gap-2"><input className="p-1.5 border rounded text-sm font-bold" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Nome" /><select className="p-1.5 border rounded text-xs" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})}><optgroup label="Almoxarifado"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup><optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup></select><input className="p-1.5 border rounded text-xs" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} placeholder="Local" /><div className="grid grid-cols-3 gap-1"><input type="number" className="p-1.5 border rounded text-xs" value={editData.currentQty} onChange={e => setEditData({...editData, currentQty: e.target.value})} placeholder="Qtd" /><input type="number" className="p-1.5 border rounded text-xs" value={editData.minQty} onChange={e => setEditData({...editData, minQty: e.target.value})} placeholder="Min" /><select className="p-1.5 border rounded text-xs" value={editData.unit} onChange={e => setEditData({...editData, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select></div><div className="flex justify-end gap-2 mt-2"><button onClick={handleCancel} className="text-xs text-slate-500 hover:underline">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">Salvar</button></div></div></div>);
+            if (isEditing) return (<div className="bg-white p-4 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden"><div className="flex flex-col gap-2"><input className="p-1.5 border rounded text-sm font-bold" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Nome" /><select className="p-1.5 border rounded text-xs" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})}><optgroup label="Almoxarifado"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup><optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup></select><input className="p-1.5 border rounded text-xs" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} placeholder="Local" /><div className="grid grid-cols-4 gap-1"><input type="number" className="p-1.5 border rounded text-xs" value={editData.currentQty ?? ''} onChange={e => setEditData({...editData, currentQty: e.target.value})} placeholder="Qtd" /><input type="number" className="p-1.5 border rounded text-xs" value={editData.minQty ?? ''} onChange={e => setEditData({...editData, minQty: e.target.value})} placeholder="Min" /><input type="number" className="p-1.5 border rounded text-xs" value={editData.maxQty ?? ''} onChange={e => setEditData({...editData, maxQty: e.target.value})} placeholder="Max" /><select className="p-1.5 border rounded text-xs" value={editData.unit} onChange={e => setEditData({...editData, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select></div><div className="flex justify-end gap-2 mt-2"><button onClick={handleCancel} className="text-xs text-slate-500 hover:underline">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">Salvar</button></div></div></div>);
             
             return (
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
@@ -659,7 +659,7 @@
             const [searchTerm, setSearchTerm] = React.useState('');
             const [showForm, setShowForm] = React.useState(false);
             const [isInventoryLocked, setIsInventoryLocked] = React.useState(true);
-            const [newItem, setNewItem] = React.useState({ name: '', category: 'epi', unit: 'un', currentQty: 0, minQty: 0, maxQty: 0, location: '', notes: '' });
+            const [newItem, setNewItem] = React.useState({ name: '', category: 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '' });
             const [filterTab, setFilterTab] = React.useState('Todos');
 
             React.useEffect(() => {
@@ -673,7 +673,23 @@
 
             const handleAddItem = async (e) => {
                 e.preventDefault(); if (!newItem.name) return;
-                try { await addDoc(collection(db, 'estoque_lab_2026'), { ...newItem, name: newItem.name.trim(), updatedAt: new Date().toISOString() }); setNewItem({ name: '', category: 'epi', unit: 'un', currentQty: 0, minQty: 0, maxQty: 0, location: '', notes: '' }); setShowForm(false); } catch (e) { console.error(e); }
+                
+                const itemToSave = {
+                    ...newItem,
+                    name: newItem.name.trim(),
+                    currentQty: parseInt(newItem.currentQty) || 0,
+                    minQty: parseInt(newItem.minQty) || 0,
+                    maxQty: parseInt(newItem.maxQty) || 0,
+                    updatedAt: new Date().toISOString()
+                };
+
+                try { 
+                    await addDoc(collection(db, 'estoque_lab_2026'), itemToSave); 
+                    setNewItem({ name: '', category: 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '' }); 
+                    setShowForm(false); 
+                } catch (e) { 
+                    console.error(e); 
+                }
             };
 
             const handleUpdateQty = async (id, itemName, currentQty, change) => {
@@ -837,10 +853,14 @@
                 let fulfilledCount = 0;
 
                 const itemCounts = {};
+                const missingItemCounts = {};
                 const sectorCounts = {};
                 const monthCounts = {};
 
                 requests.forEach(r => {
+                    const qty = parseInt(r.quantity) || 1;
+                    const itemName = r.item ? r.item.trim() : 'Desconhecido';
+
                     // Contagem de Status e Tempo de Atendimento
                     if (r.status === 'approved') {
                         approved++;
@@ -853,13 +873,12 @@
                         }
                     } else if (r.status === 'out_of_stock') {
                         outOfStock++;
+                        missingItemCounts[itemName] = (missingItemCounts[itemName] || 0) + qty;
                     } else {
                         pending++;
                     }
 
-                    // Contagem de Itens (Volume consumido)
-                    const qty = parseInt(r.quantity) || 1;
-                    const itemName = r.item ? r.item.trim() : 'Desconhecido';
+                    // Contagem de Itens (Volume consumido geral)
                     itemCounts[itemName] = (itemCounts[itemName] || 0) + qty;
 
                     // Contagem por Setor (Volume de Pedidos)
@@ -888,6 +907,7 @@
 
                 // Rankings e Ordenação
                 const topItems = Object.entries(itemCounts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count).slice(0, 5);
+                const topMissingItems = Object.entries(missingItemCounts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count).slice(0, 5);
                 const topSectors = Object.entries(sectorCounts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count);
                 const monthlyData = Object.keys(monthCounts).sort().map(k => monthCounts[k]);
 
@@ -895,11 +915,12 @@
                 const maxMonthCount = Math.max(...monthlyData.map(m => m.count), 1);
                 const maxSectorCount = Math.max(...topSectors.map(s => s.count), 1);
                 const maxItemCount = Math.max(...topItems.map(i => i.count), 1);
+                const maxMissingItemCount = Math.max(...topMissingItems.map(i => i.count), 1);
 
                 return {
                     totalRequests, approved, outOfStock, pending, avgTimeLabel,
-                    topItems, topSectors, monthlyData,
-                    maxMonthCount, maxSectorCount, maxItemCount
+                    topItems, topMissingItems, topSectors, monthlyData,
+                    maxMonthCount, maxSectorCount, maxItemCount, maxMissingItemCount
                 };
             }, [requests]);
 
@@ -968,7 +989,7 @@
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {/* Ranking de Setores */}
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.Building2 /> Setores que Mais Consomem</h3>
@@ -990,7 +1011,7 @@
 
                         {/* Itens Mais Solicitados */}
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.ShoppingCart /> Top 5 Itens (Volume)</h3>
+                            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.ShoppingCart /> Top 5 Itens (Volume Geral)</h3>
                             <div className="space-y-5">
                                 {stats.topItems.length === 0 && <div className="text-slate-400 text-sm">Sem dados.</div>}
                                 {stats.topItems.map((item, i) => (
@@ -1001,6 +1022,25 @@
                                         </div>
                                         <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                                             <div style={{width: `${(item.count / stats.maxItemCount) * 100}%`}} className="bg-blue-500 h-full rounded-full transition-all"></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Itens Mais em Falta */}
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.PackageX /> Top 5 Itens (Em Falta)</h3>
+                            <div className="space-y-5">
+                                {stats.topMissingItems.length === 0 && <div className="text-slate-400 text-sm">Nenhum item em falta registrado.</div>}
+                                {stats.topMissingItems.map((item, i) => (
+                                    <div key={i}>
+                                        <div className="flex justify-between text-sm mb-1.5">
+                                            <span className="font-bold text-slate-700 truncate max-w-[80%] flex items-center gap-2"><span className="text-slate-400 text-xs w-4">{i+1}º</span> {item.name}</span>
+                                            <span className="font-bold text-red-600">{item.count} unid.</span>
+                                        </div>
+                                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                                            <div style={{width: `${(item.count / stats.maxMissingItemCount) * 100}%`}} className="bg-red-500 h-full rounded-full transition-all"></div>
                                         </div>
                                     </div>
                                 ))}
