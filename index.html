@@ -100,7 +100,7 @@
     <!-- Script configurado com data-presets="react" apenas, para evitar transformação CommonJS (require) -->
     <script type="text/babel" data-type="module" data-presets="react">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, setDoc, getDoc, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // --- CONFIGURAÇÃO FIREBASE ---
@@ -264,40 +264,144 @@
         // --- COMPONENTES (ORDEM CORRIGIDA) ---
 
         const LoginScreen = ({ onLogin }) => {
+            const [isRegistering, setIsRegistering] = React.useState(false);
             const [name, setName] = React.useState('');
+            const [email, setEmail] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            const [confirmPassword, setConfirmPassword] = React.useState('');
             const [role, setRole] = React.useState('lab_tech');
             const [sector, setSector] = React.useState('');
-            const [password, setPassword] = React.useState('');
+            const [accessCode, setAccessCode] = React.useState('');
             const [error, setError] = React.useState('');
+            const [isLoading, setIsLoading] = React.useState(false);
 
-            const handleEnter = () => {
-                setError(''); if (!name.trim()) return setError("Digite seu nome.");
-                if (role === 'logistics') { if (password !== SENHA_LOGISTICA) return setError("Senha incorreta."); onLogin({ name, role, sector: 'LOGÍSTICA' }); }
-                else if (role === 'admin') { if (password !== SENHA_ADMIN) return setError("Senha incorreta."); onLogin({ name, role, sector: 'ADMINISTRAÇÃO' }); }
-                else if (role === 'master') { if (password !== SENHA_MASTER) return setError("Senha incorreta."); onLogin({ name, role, sector: 'GESTOR DO SISTEMA' }); }
-                else { if (!sector) return setError("Selecione seu setor."); onLogin({ name, role, sector }); }
+            const handleLoginSubmit = async () => {
+                setError('');
+                if (!email.trim() || !password.trim()) return setError("Preencha e-mail e senha.");
+                setIsLoading(true);
+                try {
+                    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                    const docSnap = await getDoc(doc(db, 'users_lab_2026', userCredential.user.uid));
+                    if (docSnap.exists()) {
+                        onLogin(docSnap.data());
+                    } else {
+                        setError("Perfil não encontrado no banco de dados.");
+                    }
+                } catch (err) {
+                    console.error(err);
+                    setError("E-mail ou senha incorretos.");
+                }
+                setIsLoading(false);
+            };
+
+            const handleRegisterSubmit = async () => {
+                setError('');
+                if (!name.trim()) return setError("Digite seu nome completo.");
+                if (!email.trim()) return setError("Digite seu e-mail.");
+                if (password.length < 6) return setError("A senha deve ter pelo menos 6 caracteres.");
+                if (password !== confirmPassword) return setError("As senhas não coincidem.");
+                
+                // Verificação de Segurança para cargos superiores
+                if (role === 'logistics' && accessCode !== SENHA_LOGISTICA) return setError("Código de acesso incorreto para Logística.");
+                if (role === 'admin' && accessCode !== SENHA_ADMIN) return setError("Código de acesso incorreto para Administração.");
+                if (role === 'master' && accessCode !== SENHA_MASTER) return setError("Código de acesso incorreto para Gestor.");
+                if (role === 'lab_tech' && !sector) return setError("Selecione seu setor.");
+
+                setIsLoading(true);
+                try {
+                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                    const userProfile = {
+                        name: name.trim(),
+                        email: email.trim(),
+                        role: role,
+                        sector: role === 'logistics' ? 'LOGÍSTICA' : role === 'admin' ? 'ADMINISTRAÇÃO' : role === 'master' ? 'GESTOR DO SISTEMA' : sector
+                    };
+                    
+                    // Salva o perfil do usuário recém-criado em uma coleção separada
+                    await setDoc(doc(db, 'users_lab_2026', userCredential.user.uid), userProfile);
+                    onLogin(userProfile);
+                } catch (err) {
+                    console.error(err);
+                    if (err.code === 'auth/email-already-in-use') setError("Este e-mail já está cadastrado.");
+                    else setError("Erro ao criar conta: " + err.message);
+                }
+                setIsLoading(false);
             };
 
             return (
                 <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
                     <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-slate-100 fade-in">
-                        <div className="flex justify-center mb-8"><InstitutionalLogo /></div>
-                        <h2 className="text-xl font-semibold text-center text-slate-700 mb-1">LabFlow 2026</h2>
-                        <p className="text-center text-slate-500 mb-6 text-sm">Controle de Almoxarifado & Adm</p>
+                        <div className="flex justify-center mb-6"><InstitutionalLogo /></div>
+                        <h2 className="text-xl font-semibold text-center text-slate-700 mb-1">
+                            {isRegistering ? 'Criar Nova Conta' : 'Acesso ao Sistema'}
+                        </h2>
+                        <p className="text-center text-slate-500 mb-6 text-sm">LabFlow 2026</p>
+                        
                         <div className="space-y-4">
-                            <div><label className="block text-sm font-bold text-slate-700 mb-1">Seu Nome</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: João Silva" className="w-full p-3 border border-slate-300 rounded-lg outline-none" /></div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">Função</label>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                    <button onClick={() => setRole('lab_tech')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'lab_tech' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-200 text-slate-500'}`}><Icons.Beaker /><span className="text-xs font-medium">Lab</span></button>
-                                    <button onClick={() => setRole('logistics')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'logistics' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 text-slate-500'}`}><Icons.Truck /><span className="text-xs font-medium">Logística</span></button>
-                                    <button onClick={() => setRole('admin')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'admin' ? 'bg-purple-50 border-purple-500 text-purple-700' : 'border-slate-200 text-slate-500'}`}><Icons.Briefcase /><span className="text-xs font-medium">Admin</span></button>
-                                    <button onClick={() => setRole('master')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'master' ? 'bg-red-50 border-red-500 text-red-700' : 'border-slate-200 text-slate-500'}`}><Icons.Shield /><span className="text-xs font-medium">Gestor</span></button>
+                            {!isRegistering ? (
+                                // --- FORMULÁRIO DE LOGIN ---
+                                <>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">E-mail (Login)</label>
+                                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="exemplo@senaicimatec.com" className="w-full p-3 border border-slate-300 rounded-lg outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1">Senha</label>
+                                        <div className="relative">
+                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Lock /></div>
+                                            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Sua senha" className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg outline-none" />
+                                        </div>
+                                    </div>
+                                    {error && <div className="text-red-500 text-sm font-medium text-center bg-red-50 p-2 rounded">{error}</div>}
+                                    <button onClick={handleLoginSubmit} disabled={isLoading} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow uppercase transition-all">
+                                        {isLoading ? 'Aguarde...' : 'Entrar'}
+                                    </button>
+                                    <div className="text-center mt-4 pt-4 border-t border-slate-100">
+                                        <button onClick={() => { setIsRegistering(true); setError(''); }} className="text-sm text-blue-600 hover:underline font-semibold">
+                                            Não tem uma conta? Cadastre-se
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                // --- FORMULÁRIO DE REGISTRO ---
+                                <div className="animate-in fade-in space-y-3">
+                                    <div><label className="block text-xs font-bold text-slate-700 mb-1">Nome Completo</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: João Silva" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none text-sm" /></div>
+                                    
+                                    <div><label className="block text-xs font-bold text-slate-700 mb-1">E-mail Corporativo</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="exemplo@senaicimatec.com" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none text-sm" /></div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div><label className="block text-xs font-bold text-slate-700 mb-1">Senha</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 char" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none text-sm" /></div>
+                                        <div><label className="block text-xs font-bold text-slate-700 mb-1">Confirmar Senha</label><input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Repita a senha" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none text-sm" /></div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 mb-1">Sua Função</label>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                            <button onClick={() => setRole('lab_tech')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'lab_tech' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-200 text-slate-500'}`}><Icons.Beaker /><span className="text-[10px] font-medium uppercase">Lab</span></button>
+                                            <button onClick={() => setRole('logistics')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'logistics' ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'border-slate-200 text-slate-500'}`}><Icons.Truck /><span className="text-[10px] font-medium uppercase">Logística</span></button>
+                                            <button onClick={() => setRole('admin')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'admin' ? 'bg-purple-50 border-purple-500 text-purple-700' : 'border-slate-200 text-slate-500'}`}><Icons.Briefcase /><span className="text-[10px] font-medium uppercase">Admin</span></button>
+                                            <button onClick={() => setRole('master')} className={`p-2 rounded-lg border flex flex-col items-center justify-center gap-1 ${role === 'master' ? 'bg-red-50 border-red-500 text-red-700' : 'border-slate-200 text-slate-500'}`}><Icons.Shield /><span className="text-[10px] font-medium uppercase">Gestor</span></button>
+                                        </div>
+                                    </div>
+                                    
+                                    {role === 'lab_tech' ? (
+                                        <div className="fade-in"><label className="block text-xs font-bold text-slate-700 mb-1">Setor / Laboratório</label><div className="relative"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Building2 /></div><select value={sector} onChange={(e) => setSector(e.target.value)} className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg outline-none bg-white text-sm"><option value="" disabled>Selecione...</option>{SETORES.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div>
+                                    ) : (
+                                        <div className="fade-in"><label className="block text-xs font-bold text-slate-700 mb-1">Código de Acesso Institucional</label><div className="relative"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Lock /></div><input type="password" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} placeholder="Código obrigatório da chefia" className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg outline-none text-sm" /></div></div>
+                                    )}
+
+                                    {error && <div className="text-red-500 text-xs font-medium text-center bg-red-50 p-2 rounded">{error}</div>}
+                                    
+                                    <button onClick={handleRegisterSubmit} disabled={isLoading} className="w-full mt-2 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow uppercase transition-all">
+                                        {isLoading ? 'Aguarde...' : 'Criar Conta'}
+                                    </button>
+                                    <div className="text-center mt-3 pt-3 border-t border-slate-100">
+                                        <button onClick={() => { setIsRegistering(false); setError(''); }} className="text-sm text-slate-500 hover:text-slate-800 font-semibold">
+                                            Já possui conta? Fazer Login
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                            {role === 'lab_tech' ? (<div className="fade-in"><label className="block text-sm font-bold text-slate-700 mb-1">Setor</label><div className="relative"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Building2 /></div><select value={sector} onChange={(e) => setSector(e.target.value)} className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg outline-none bg-white"><option value="" disabled>Selecione...</option>{SETORES.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div>) : (<div className="fade-in"><label className="block text-sm font-bold text-slate-700 mb-1">Senha</label><div className="relative"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Lock /></div><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg outline-none" /></div></div>)}
-                            {error && <div className="text-red-500 text-sm font-medium text-center bg-red-50 p-2 rounded">{error}</div>}
-                            <button onClick={handleEnter} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow uppercase">Entrar</button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1115,7 +1219,31 @@
             const [storageLocationReq, setStorageLocationReq] = React.useState('');
             const [sectorReq, setSectorReq] = React.useState('');
 
-            React.useEffect(() => { signInAnonymously(auth).catch(console.error); onAuthStateChanged(auth, u => { setUser(u); const s = localStorage.getItem('labflow_user_v2'); if (s) setAppUser(JSON.parse(s)); setLoading(false); }); }, []);
+            React.useEffect(() => { 
+                const unsubscribe = onAuthStateChanged(auth, async u => { 
+                    setUser(u); 
+                    if (u) {
+                        const s = localStorage.getItem('labflow_user_v2'); 
+                        if (s) {
+                            setAppUser(JSON.parse(s)); 
+                        } else {
+                            try {
+                                const docSnap = await getDoc(doc(db, 'users_lab_2026', u.uid));
+                                if (docSnap.exists()) {
+                                    setAppUser(docSnap.data());
+                                    localStorage.setItem('labflow_user_v2', JSON.stringify(docSnap.data()));
+                                }
+                            } catch(e) { console.error(e); }
+                        }
+                    } else {
+                        setAppUser(null);
+                        localStorage.removeItem('labflow_user_v2');
+                    }
+                    setLoading(false); 
+                }); 
+                return () => unsubscribe(); 
+            }, []);
+
             React.useEffect(() => { if (!user) return; onSnapshot(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), s => s.exists() ? setNotices(s.data()) : setDoc(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), { logistics: '', admin: '' })); }, [user]);
             React.useEffect(() => { if (appUser && (newItem || quantity || notes)) { localStorage.setItem('labflow_draft_v1', JSON.stringify({ item: newItem, quantity, unit, category, notes, isUrgent })); setDraftSaved(true); setTimeout(() => setDraftSaved(false), 2000); } }, [newItem, quantity, unit, category, notes, isUrgent, appUser]);
             React.useEffect(() => { if (!user) return; onSnapshot(query(collection(db, 'solicitacoes_lab_2026'), orderBy('createdAt', 'desc')), s => setRequests(s.docs.filter(d => d.id !== 'NOTICES_CONFIG').map(d => ({ id: d.id, ...d.data() })))); }, [user]);
@@ -1179,7 +1307,11 @@
             };
 
             const handleLogin = (u) => { setAppUser(u); localStorage.setItem('labflow_user_v2', JSON.stringify(u)); };
-            const handleLogout = () => { setAppUser(null); localStorage.removeItem('labflow_user_v2'); };
+            const handleLogout = async () => { 
+                await signOut(auth);
+                setAppUser(null); 
+                localStorage.removeItem('labflow_user_v2'); 
+            };
             const handleUpdateNotice = async (n) => await updateDoc(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), n);
             const handleSubmitRequest = async (e) => { 
                 e.preventDefault(); 
