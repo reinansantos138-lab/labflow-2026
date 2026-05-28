@@ -97,7 +97,6 @@
 <body>
     <div id="root"></div>
 
-    <!-- Script configurado com data-presets="react" apenas, para evitar transformação CommonJS (require) -->
     <script type="text/babel" data-type="module" data-presets="react">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -477,6 +476,9 @@
             const isAdmCategory = CAT_GROUPS.admin.includes(req.category);
             const badgeColor = isAdmCategory ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200';
 
+            const reqRole = req.requesterRole || (req.requesterSector === 'GESTOR DO SISTEMA' ? 'master' : 'lab_tech');
+            const isReplenishment = (reqRole === 'master' || reqRole === 'logistics');
+
             return (
                 <div className={`bg-white rounded-lg shadow-sm border p-4 transition-all ${req.status === 'pending' ? 'border-l-4 border-l-yellow-400' : req.status === 'approved' ? 'border-l-4 border-l-green-500 bg-green-50/10' : 'border-l-4 border-l-red-500 opacity-75'}`}>
                     {isEditingReq ? (
@@ -494,22 +496,32 @@
                             </div>
                             {role !== 'lab_tech' && (
                                 <div className="flex flex-row md:flex-col gap-2 justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-4 min-w-[140px]">
-                                    {req.status === 'pending' ? (
-                                        !showPartialInput ? (
-                                            <>
-                                                <button onClick={() => handleStatusAction('approved')} className="bg-green-100 text-green-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-green-200 flex items-center justify-center gap-2" title="Entregar Total (Baixa Estoque)"><Icons.CheckCircle2 /> TOTAL</button>
-                                                <button onClick={() => setShowPartialInput(true)} className="bg-orange-100 text-orange-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-orange-200 flex items-center justify-center gap-2" title="Entregar Parcial (Baixa Estoque)"><Icons.Scissors /> PARCIAL</button>
-                                                <button onClick={() => onOutOfStock(req.id)} className="bg-red-100 text-red-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-red-200 flex items-center justify-center gap-2"><Icons.PackageX /> EM FALTA</button>
-                                            </>
+                                    {isReplenishment && CAT_GROUPS.logistics.includes(req.category) ? (
+                                        req.status === 'pending' ? (
+                                            <button onClick={() => onReceiveLogistics(req.id, req.item, req.quantity, req.unit)} className="bg-blue-600 text-white py-2 px-3 rounded-lg text-xs font-bold hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm transition">
+                                                <Icons.Box /> DAR BAIXA (ENTRADA)
+                                            </button>
                                         ) : (
-                                            <div className="flex flex-col gap-2 animate-in fade-in">
-                                                <div className="text-xs font-bold text-slate-500 text-center">Qtd Real?</div>
-                                                <input type="number" value={partialQty} onChange={(e) => setPartialQty(e.target.value)} className="w-full p-1 border rounded text-center text-sm font-bold"/>
-                                                <div className="flex gap-1"><button onClick={() => setShowPartialInput(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded py-1 text-xs">X</button><button onClick={handlePartialConfirm} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded py-1 text-xs font-bold">OK</button></div>
-                                            </div>
+                                            <div className="text-center"><span className="text-sm font-bold text-green-600">RECEBIDO</span></div>
                                         )
                                     ) : (
-                                        <div className="text-center"><span className={`text-sm font-bold ${req.status === 'approved' ? 'text-green-600' : 'text-red-600'}`}>{req.status === 'approved' ? 'SEPARADO' : 'INDISPONÍVEL'}</span><button onClick={() => handleStatusAction('pending')} className="block mx-auto text-xs text-slate-400 underline mt-1">Alterar</button></div>
+                                        req.status === 'pending' ? (
+                                            !showPartialInput ? (
+                                                <>
+                                                    <button onClick={() => handleStatusAction('approved')} className="bg-green-100 text-green-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-green-200 flex items-center justify-center gap-2" title="Entregar Total (Baixa Estoque)"><Icons.CheckCircle2 /> TOTAL</button>
+                                                    <button onClick={() => setShowPartialInput(true)} className="bg-orange-100 text-orange-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-orange-200 flex items-center justify-center gap-2" title="Entregar Parcial (Baixa Estoque)"><Icons.Scissors /> PARCIAL</button>
+                                                    <button onClick={() => onOutOfStock(req.id)} className="bg-red-100 text-red-700 py-1.5 px-3 rounded text-xs font-bold hover:bg-red-200 flex items-center justify-center gap-2"><Icons.PackageX /> EM FALTA</button>
+                                                </>
+                                            ) : (
+                                                <div className="flex flex-col gap-2 animate-in fade-in">
+                                                    <div className="text-xs font-bold text-slate-500 text-center">Qtd Real?</div>
+                                                    <input type="number" value={partialQty} onChange={(e) => setPartialQty(e.target.value)} className="w-full p-1 border rounded text-center text-sm font-bold"/>
+                                                    <div className="flex gap-1"><button onClick={() => setShowPartialInput(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded py-1 text-xs">X</button><button onClick={handlePartialConfirm} className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded py-1 text-xs font-bold">OK</button></div>
+                                                </div>
+                                            )
+                                        ) : (
+                                            <div className="text-center"><span className={`text-sm font-bold ${req.status === 'approved' ? 'text-green-600' : 'text-red-600'}`}>{req.status === 'approved' ? 'SEPARADO' : 'INDISPONÍVEL'}</span><button onClick={() => handleStatusAction('pending')} className="block mx-auto text-xs text-slate-400 underline mt-1">Alterar</button></div>
+                                        )
                                     )}
                                 </div>
                             )}
@@ -581,7 +593,7 @@
             );
         };
 
-        // --- NOVA VISUALIZAÇÃO: SOLICITAÇÃO DE COMPRAS (ADMIN) ---
+        // --- NOVA VISUALIZAÇÃO: SOLICITAÇÃO DE COMPRAS (ADMIN E LOGISTICA) ---
         const PurchaseRequestView = ({ userRole }) => {
             const [items, setItems] = React.useState([]);
             const [searchTerm, setSearchTerm] = React.useState('');
@@ -631,7 +643,6 @@
                     const current = parseInt(item.currentQty || 0);
                     const min = parseInt(item.minQty || 0);
                     const max = parseInt(item.maxQty || 0);
-                    // Sugestão: Se tiver Max, sugere (Max - Atual). Se não, sugere (Min * 2).
                     const suggestion = max > 0 ? (max - current) : (min > 0 ? min * 2 : 0);
                     
                     return [
@@ -648,24 +659,23 @@
                     body: tableRows,
                     startY: 45,
                     theme: 'grid',
-                    headStyles: { fillColor: [220, 20, 60] } // Cor vermelha para chamar atenção de compra
+                    headStyles: { fillColor: [220, 20, 60] }
                 });
 
-                // Rodapé com Assinaturas
                 const finalY = doc.lastAutoTable.finalY + 30;
-                doc.line(14, finalY, 90, finalY); // Linha 1
+                doc.line(14, finalY, 90, finalY);
                 doc.text("Aprovação da Gerência", 52, finalY + 5, null, null, 'center');
 
-                doc.line(110, finalY, 190, finalY); // Linha 2
+                doc.line(110, finalY, 190, finalY);
                 doc.text("Setor de Compras", 150, finalY + 5, null, null, 'center');
 
-                doc.save('requisicao_compras_adm.pdf');
+                doc.save('requisicao_compras.pdf');
             };
 
             return (
                 <div className="animate-in fade-in">
                     <div className="bg-red-50 border border-red-100 p-4 rounded-lg mb-6">
-                        <h3 className="text-red-800 font-bold flex items-center gap-2"><Icons.ShoppingCart /> Painel de Compras (Escritório)</h3>
+                        <h3 className="text-red-800 font-bold flex items-center gap-2"><Icons.ShoppingCart /> Painel de Compras</h3>
                         <p className="text-xs text-red-600 mt-1">Listando automaticamente itens com estoque Crítico ou em Atenção.</p>
                     </div>
 
@@ -727,7 +737,6 @@
             const [loading, setLoading] = React.useState(true);
 
             React.useEffect(() => {
-                // Busca movimentações
                 const q = query(collection(db, 'movimentacoes_estoque_2026'), orderBy('timestamp', 'desc'));
                 const unsubscribe = onSnapshot(q, (snapshot) => {
                     setMovements(snapshot.docs.map(d => ({id: d.id, ...d.data()})));
@@ -889,7 +898,7 @@
                                 className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${filterTab === tab ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700'}`}
                             >
                                 {tab === 'OK' ? 'OK / Disponível' : tab}
-                                {tab !== 'Todos' && <span className="ml-1 opacity-75">({items.filter(i => getStatus(i.currentQty, i.minQty) === tab).length})</span>}
+                                {tab !== 'Todos' && <span className="ml-1 opacity-75">({displayedItems.filter(i => getStatus(i.currentQty, i.minQty) === tab).length})</span>}
                             </button>
                         ))}
                     </div>
@@ -904,7 +913,7 @@
                                     {(userRole === 'master' || userRole === 'admin') && <optgroup label="Adm (Cicilha)"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup>}
                                 </select>
                                 <input className="p-2 border rounded" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
-                                <select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select>
+                                <select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select>
                                 <div className="md:col-span-4 grid grid-cols-3 gap-4">
                                     <input type="number" className="p-2 border rounded" placeholder="Qtd Atual" value={newItem.currentQty} onChange={e => setNewItem({...newItem, currentQty: e.target.value})} />
                                     <input type="number" className="p-2 border rounded" placeholder="Estoque Mínimo" value={newItem.minQty} onChange={e => setNewItem({...newItem, minQty: e.target.value})} />
@@ -1201,6 +1210,7 @@
             const [selectedReqId, setSelectedReqId] = React.useState(null);
             const [stockMessage, setStockMessage] = React.useState('');
             const [isHistoryLocked, setIsHistoryLocked] = React.useState(true);
+            const [activeReqTab, setActiveReqTab] = React.useState('admin');
 
             // ESTADOS PARA SUGESTÃO
             const [showSuggestionModal, setShowSuggestionModal] = React.useState(false);
@@ -1263,6 +1273,15 @@
                 else { document.documentElement.classList.remove('dark'); localStorage.setItem('labflow_theme', 'light'); }
             }, [isDarkMode]);
 
+            // Sincroniza a categoria padrão ao trocar de aba (para Lab Tech e Master)
+            React.useEffect(() => {
+                if (appUser && (appUser.role === 'lab_tech' || appUser.role === 'master')) {
+                    if (activeReqTab === 'admin' && !CAT_GROUPS.admin.includes(category)) setCategory('epi');
+                    if (activeReqTab === 'logistics' && !CAT_GROUPS.logistics.includes(category)) setCategory('reagente');
+                    setNewItem(''); // Clear item when switching tabs to avoid confusion
+                }
+            }, [activeReqTab, appUser]);
+
             // --- AUTOFILL INVENTORY FETCH ---
             React.useEffect(() => { 
                 if (!user) return; 
@@ -1273,14 +1292,25 @@
                     s.docs.forEach(d => {
                         const data = d.data();
                         map[data.name.trim().toLowerCase()] = data;
-                        
                         names.push(data.name);
                     });
                     setInventoryNames(names);
                     setInventoryMap(map);
                 }); 
                 return () => unsub(); 
-            }, [user, appUser]);
+            }, [user]);
+
+            const filteredInventoryNames = React.useMemo(() => {
+                return inventoryNames.filter(name => {
+                    const match = inventoryMap[name.toLowerCase()];
+                    if (!match) return false;
+                    if (appUser && (appUser.role === 'lab_tech' || appUser.role === 'master')) {
+                        if (activeReqTab === 'admin') return CAT_GROUPS.admin.includes(match.category);
+                        if (activeReqTab === 'logistics') return CAT_GROUPS.logistics.includes(match.category);
+                    }
+                    return true;
+                }).sort((a, b) => a.localeCompare(b));
+            }, [inventoryNames, inventoryMap, activeReqTab, appUser]);
 
             const handleItemChange = (e) => {
                 const val = e.target.value;
@@ -1328,6 +1358,7 @@
                     storageLocation: storageLocationReq, 
                     requesterName: appUser.name, 
                     requesterSector: sectorReq || appUser.sector, 
+                    requesterRole: appUser.role, // Adicionado para identificar a função
                     requesterId: user.uid, 
                     createdAt: new Date().toISOString(), 
                     status: 'pending', 
@@ -1743,26 +1774,34 @@
                 
                 if (appUser.role === 'admin') {
                     list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
-                } else if (appUser.role === 'logistics') {
-                    list = list.filter(r => CAT_GROUPS.logistics.includes(r.category));
                 }
                 
                 const active = [], history = [], masterHistory = [];
                 list.forEach(r => {
                     const isLogistics = CAT_GROUPS.logistics.includes(r.category);
+                    const finished = r.status === 'approved' || r.status === 'out_of_stock';
                     
                     if (isLogistics) {
-                        const finished = r.status === 'approved' || r.status === 'out_of_stock';
+                        const isReplenishment = (r.requesterRole === 'master' || r.requesterSector === 'GESTOR DO SISTEMA');
+                        
                         if (r.isArchived || finished) {
                             masterHistory.push(r);
+                            if (appUser.role === 'lab_tech' && !r.isArchived) {
+                                const recent = isRecent(r.statusUpdatedAt || r.createdAt, 7);
+                                if (finished && recent) active.push(r);
+                                else history.push(r);
+                            }
                         } else {
-                            if (appUser.role === 'master' || appUser.role === 'logistics' || appUser.role === 'lab_tech') active.push(r);
+                            if (appUser.role === 'master' || appUser.role === 'lab_tech') {
+                                active.push(r);
+                            } else if (appUser.role === 'logistics' && !isReplenishment) {
+                                active.push(r);
+                            }
                         }
                     } else {
                         if (r.isArchived) {
                             history.push(r);
                         } else {
-                            const finished = r.status === 'approved' || r.status === 'out_of_stock';
                             if (appUser.role === 'admin' || appUser.role === 'master') {
                                 active.push(r); 
                             } else {
@@ -1775,13 +1814,28 @@
                 return { activeList: active, historyList: history, masterHistoryList: masterHistory };
             }, [requests, searchTerm, appUser]);
 
+            const displayedActiveList = React.useMemo(() => {
+                if (appUser && (appUser.role === 'lab_tech' || appUser.role === 'master')) {
+                    if (activeReqTab === 'admin') return activeList.filter(r => CAT_GROUPS.admin.includes(r.category));
+                    if (activeReqTab === 'logistics') return activeList.filter(r => CAT_GROUPS.logistics.includes(r.category));
+                }
+                return activeList;
+            }, [activeList, activeReqTab, appUser]);
+
+            const displayedHistoryList = React.useMemo(() => {
+                if (appUser && (appUser.role === 'lab_tech' || appUser.role === 'master')) {
+                    if (activeReqTab === 'admin') return historyList.filter(r => CAT_GROUPS.admin.includes(r.category));
+                    if (activeReqTab === 'logistics') return historyList.filter(r => CAT_GROUPS.logistics.includes(r.category));
+                }
+                return historyList;
+            }, [historyList, activeReqTab, appUser]);
+
             const groupedHistoryArray = React.useMemo(() => {
                 const groups = [];
                 const map = new Map();
-                historyList.forEach(req => {
+                displayedHistoryList.forEach(req => {
                     const d = new Date(req.createdAt);
                     const monthYear = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                    // Capitalizando a primeira letra do mês (ex: "Fevereiro de 2026")
                     const capitalizedStr = monthYear.charAt(0).toUpperCase() + monthYear.slice(1);
                     
                     if (!map.has(capitalizedStr)) {
@@ -1792,7 +1846,7 @@
                     else map.get(capitalizedStr).delivered.push(req);
                 });
                 return groups.map(g => ({ month: g, ...map.get(g) }));
-            }, [historyList]);
+            }, [displayedHistoryList]);
 
             const groupedMasterHistoryArray = React.useMemo(() => {
                 const groups = [];
@@ -1811,6 +1865,8 @@
                 return groups.map(g => ({ month: g, ...map.get(g) }));
             }, [masterHistoryList]);
 
+            const missingHistory = displayedHistoryList.filter(r => r.status === 'out_of_stock');
+            const deliveredHistory = displayedHistoryList.filter(r => r.status === 'approved');
             const isCarnival = isCarnivalSeason();
 
             if (loading) return <div className="flex h-screen items-center justify-center text-slate-500">Conectando...</div>;
@@ -1820,7 +1876,7 @@
                 <div className={`min-h-screen pb-20 fade-in ${isCarnival ? 'theme-carnaval' : ''}`}>
                     <NoticeBanner notices={notices} userRole={appUser.role} onUpdateNotice={handleUpdateNotice} />
                     <header className={`bg-white text-slate-800 shadow-sm border-b border-slate-200 sticky top-0 z-10 ${isCarnival ? 'header-bg' : ''}`}>
-                        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center"><div className="flex items-center gap-4 select-none"><InstitutionalLogo />{isCarnival && <span className="bg-pink-100 text-pink-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-200 animate-pulse">🎭 CARNAVAL</span>}<div className="hidden sm:block h-8 w-px bg-slate-200"></div><div><h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1><p className="text-xs text-slate-500 uppercase">{appUser.role === 'master' ? 'Gestor do Sistema' : appUser.role === 'admin' ? 'Administração' : appUser.sector}</p></div></div><div className="flex items-center gap-2">
+                        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center"><div className="flex items-center gap-4 select-none"><InstitutionalLogo />{isCarnival && <span className="bg-pink-100 text-pink-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-200 animate-pulse">🎭 CARNAVAL</span>}<div className="hidden sm:block h-8 w-px bg-slate-200"></div><div><h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1><p className="text-xs text-slate-500 uppercase">{appUser.role === 'master' ? 'Gestor do Sistema' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'logistics' ? 'Logística' : appUser.sector}</p></div></div><div className="flex items-center gap-2">
                             
                             {/* Botão do Dark Mode */}
                             <button onClick={() => setIsDarkMode(!isDarkMode)} className="text-slate-400 hover:text-yellow-500 p-2 transition mr-1" title="Alternar Tema Escuro">
@@ -1876,12 +1932,22 @@
                                     )}
                                 </button>
                             )}
-                            {(appUser.role === 'admin' || appUser.role === 'master' || appUser.role === 'logistics') && <button onClick={() => setView('dashboard')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'dashboard' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('dashboard')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'dashboard' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
                                 <Icons.BarChart /> Dashboard
                             </button>}
                         </div>
                         {view === 'active' && (
                             <>
+                                {(appUser.role === 'lab_tech' || appUser.role === 'master') && (
+                                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2 border-b border-slate-200">
+                                        <button onClick={() => setActiveReqTab('admin')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${activeReqTab === 'admin' ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700'}`}>
+                                            📎 Pedidos Administração
+                                        </button>
+                                        <button onClick={() => setActiveReqTab('logistics')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${activeReqTab === 'logistics' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700'}`}>
+                                            🧪 Pedidos Almoxarifado
+                                        </button>
+                                    </div>
+                                )}
                                 {(appUser.role === 'lab_tech' || appUser.role === 'master') && (
                                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-8 relative">
                                         {draftSaved && <div className="absolute top-0 right-0 bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded-bl-lg flex items-center gap-1"><Icons.Save /> Salvo</div>}
@@ -1914,7 +1980,7 @@
                                                             required
                                                         >
                                                             <option value="" disabled>Selecione um item do estoque...</option>
-                                                            {inventoryNames.sort((a, b) => a.localeCompare(b)).map((name, i) => (
+                                                            {filteredInventoryNames.map((name, i) => (
                                                                 <option key={i} value={name}>{name}</option>
                                                             ))}
                                                         </select>
@@ -1938,16 +2004,20 @@
                                                 <div className="md:col-span-3">
                                                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoria</label>
                                                     <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer">
-                                                        <optgroup label="Adm (Cicilha)">
-                                                            <option value="epi">🥽 EPI</option>
-                                                            <option value="escritorio">📎 Escritório</option>
-                                                            <option value="consumivel_adm">🗑️ Consumível (Adm)</option>
-                                                        </optgroup>
-                                                        <optgroup label="Almoxarifado (Logística)">
-                                                            <option value="reagente">🧪 Reagente</option>
-                                                            <option value="materiais">📦 Materiais</option>
-                                                            <option value="consumivel_log">🧴 Consumível (Lab)</option>
-                                                        </optgroup>
+                                                        {(appUser.role !== 'lab_tech' || activeReqTab === 'admin') && (
+                                                            <optgroup label="Adm (Cicilha)">
+                                                                <option value="epi">🥽 EPI</option>
+                                                                <option value="escritorio">📎 Escritório</option>
+                                                                <option value="consumivel_adm">🗑️ Consumível (Adm)</option>
+                                                            </optgroup>
+                                                        )}
+                                                        {(appUser.role !== 'lab_tech' || activeReqTab === 'logistics') && (
+                                                            <optgroup label="Almoxarifado (Logística)">
+                                                                <option value="reagente">🧪 Reagente</option>
+                                                                <option value="materiais">📦 Materiais</option>
+                                                                <option value="consumivel_log">🧴 Consumível (Lab)</option>
+                                                            </optgroup>
+                                                        )}
                                                     </select>
                                                 </div>
                                             </div>
@@ -1978,18 +2048,28 @@
                                 )}
                                 <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6"><div className="relative w-full md:w-96"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div><input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div>
                                     <div className="flex items-center gap-4">
-                                        <div className="text-sm font-medium text-slate-600 bg-slate-200 px-3 py-1 rounded-full">Exibindo: {activeList.length}</div>
+                                        <div className="text-sm font-medium text-slate-600 bg-slate-200 px-3 py-1 rounded-full">Exibindo: {displayedActiveList.length}</div>
                                         {/* BOTÃO MANUAL DE ARQUIVAR (SÓ ADM/MASTER) */}
                                         {(appUser.role === 'admin' || appUser.role === 'master') && (
                                             <button onClick={handleArchiveCycle} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded shadow flex items-center gap-2 animate-in fade-in"><Icons.Archive /> Fechar Ciclo</button>
                                         )}
                                     </div>
                                 </div>
-                                <div className="space-y-3">{activeList.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhum pedido pendente ou recente.</div> : activeList.map((req) => (<RequestCard key={req.id} req={req} role={appUser.role} onDelete={deleteRequest} onUpdateStatus={updateStatus} onOutOfStock={handleOutOfStockClick} onSaveStockInfo={handleSaveStockInfo} onApprovePartial={handleApprovePartial} onUpdateReq={handleUpdateReq} onReceiveLogistics={handleReceiveLogistics} currentUser={appUser} />))}</div>
+                                <div className="space-y-3">{displayedActiveList.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhum pedido pendente ou recente.</div> : displayedActiveList.map((req) => (<RequestCard key={req.id} req={req} role={appUser.role} onDelete={deleteRequest} onUpdateStatus={updateStatus} onOutOfStock={handleOutOfStockClick} onSaveStockInfo={handleSaveStockInfo} onApprovePartial={handleApprovePartial} onUpdateReq={handleUpdateReq} onReceiveLogistics={handleReceiveLogistics} currentUser={appUser} />))}</div>
                             </>
                         )}
                         {view === 'history' && (
                             <div className="space-y-8 animate-in fade-in">
+                                {(appUser.role === 'lab_tech' || appUser.role === 'master') && (
+                                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2 border-b border-slate-200">
+                                        <button onClick={() => setActiveReqTab('admin')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${activeReqTab === 'admin' ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700'}`}>
+                                            📎 Histórico Administração
+                                        </button>
+                                        <button onClick={() => setActiveReqTab('logistics')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${activeReqTab === 'logistics' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700'}`}>
+                                            🧪 Histórico Almoxarifado
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-4">
                                     <div className="relative w-full md:w-96">
                                         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
