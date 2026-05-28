@@ -70,7 +70,6 @@
         .dark input, .dark select, .dark textarea { background-color: #1e293b !important; color: #f8fafc !important; border-color: #475569 !important; }
         .dark .modal-overlay { background-color: rgba(0, 0, 0, 0.75) !important; }
         
-        /* Ajustes específicos para badges e banners no Dark Mode */
         .dark .bg-red-50 { background-color: rgba(127, 29, 29, 0.3) !important; }
         .dark .border-red-100 { border-color: rgba(127, 29, 29, 0.6) !important; }
         .dark .text-red-700, .dark .text-red-600 { color: #fca5a5 !important; }
@@ -97,6 +96,7 @@
 <body>
     <div id="root"></div>
 
+    <!-- Script configurado com data-presets="react" apenas, para evitar transformação CommonJS (require) -->
     <script type="text/babel" data-type="module" data-presets="react">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -249,6 +249,7 @@
             await addDoc(collection(db, 'movimentacoes_estoque_2026'), {
                 itemId: stockItem.id,
                 itemName: itemName,
+                itemCategory: stockItem.data().category, // Salva categoria para os filtros
                 type: type,
                 quantity: change,
                 origin: origin,
@@ -261,7 +262,7 @@
             });
         };
 
-        // --- COMPONENTES (ORDEM CORRIGIDA) ---
+        // --- COMPONENTES ---
 
         const LoginScreen = ({ onLogin }) => {
             const [isRegistering, setIsRegistering] = React.useState(false);
@@ -317,7 +318,6 @@
                         sector: role === 'logistics' ? 'LOGÍSTICA' : role === 'admin' ? 'ADMINISTRAÇÃO' : role === 'master' ? 'GESTOR DO SISTEMA' : sector
                     };
                     
-                    // Salva o perfil do usuário recém-criado em uma coleção separada
                     await setDoc(doc(db, 'users_lab_2026', userCredential.user.uid), userProfile);
                     onLogin(userProfile);
                 } catch (err) {
@@ -339,7 +339,6 @@
                         
                         <div className="space-y-4">
                             {!isRegistering ? (
-                                // --- FORMULÁRIO DE LOGIN ---
                                 <>
                                     <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-1">E-mail (Login)</label>
@@ -363,7 +362,6 @@
                                     </div>
                                 </>
                             ) : (
-                                // --- FORMULÁRIO DE REGISTRO ---
                                 <div className="animate-in fade-in space-y-3">
                                     <div><label className="block text-xs font-bold text-slate-700 mb-1">Nome Completo</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: João Silva" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none text-sm" /></div>
                                     
@@ -476,9 +474,6 @@
             const isAdmCategory = CAT_GROUPS.admin.includes(req.category);
             const badgeColor = isAdmCategory ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200';
 
-            const reqRole = req.requesterRole || (req.requesterSector === 'GESTOR DO SISTEMA' ? 'master' : 'lab_tech');
-            const isReplenishment = (reqRole === 'master' || reqRole === 'logistics');
-
             return (
                 <div className={`bg-white rounded-lg shadow-sm border p-4 transition-all ${req.status === 'pending' ? 'border-l-4 border-l-yellow-400' : req.status === 'approved' ? 'border-l-4 border-l-green-500 bg-green-50/10' : 'border-l-4 border-l-red-500 opacity-75'}`}>
                     {isEditingReq ? (
@@ -496,7 +491,7 @@
                             </div>
                             {role !== 'lab_tech' && (
                                 <div className="flex flex-row md:flex-col gap-2 justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-3 md:pt-0 md:pl-4 min-w-[140px]">
-                                    {isReplenishment && CAT_GROUPS.logistics.includes(req.category) ? (
+                                    {role === 'master' && CAT_GROUPS.logistics.includes(req.category) ? (
                                         req.status === 'pending' ? (
                                             <button onClick={() => onReceiveLogistics(req.id, req.item, req.quantity, req.unit)} className="bg-blue-600 text-white py-2 px-3 rounded-lg text-xs font-bold hover:bg-blue-700 flex items-center justify-center gap-2 shadow-sm transition">
                                                 <Icons.Box /> DAR BAIXA (ENTRADA)
@@ -593,7 +588,6 @@
             );
         };
 
-        // --- NOVA VISUALIZAÇÃO: SOLICITAÇÃO DE COMPRAS (ADMIN E LOGISTICA) ---
         const PurchaseRequestView = ({ userRole }) => {
             const [items, setItems] = React.useState([]);
             const [searchTerm, setSearchTerm] = React.useState('');
@@ -659,7 +653,7 @@
                     body: tableRows,
                     startY: 45,
                     theme: 'grid',
-                    headStyles: { fillColor: [220, 20, 60] }
+                    headStyles: { fillColor: [220, 20, 60] } 
                 });
 
                 const finalY = doc.lastAutoTable.finalY + 30;
@@ -669,7 +663,7 @@
                 doc.line(110, finalY, 190, finalY);
                 doc.text("Setor de Compras", 150, finalY + 5, null, null, 'center');
 
-                doc.save('requisicao_compras.pdf');
+                doc.save('requisicao_compras_adm.pdf');
             };
 
             return (
@@ -734,22 +728,52 @@
 
         const MovementsView = ({ userRole }) => {
             const [movements, setMovements] = React.useState([]);
+            const [itemsCatMap, setItemsCatMap] = React.useState({});
             const [loading, setLoading] = React.useState(true);
+            const [typeFilter, setTypeFilter] = React.useState('all');
 
             React.useEffect(() => {
+                const unsubscribeItems = onSnapshot(collection(db, 'estoque_lab_2026'), (snapshot) => {
+                    const catMap = {};
+                    snapshot.docs.forEach(d => { catMap[d.data().name] = d.data().category; });
+                    setItemsCatMap(catMap);
+                });
+
                 const q = query(collection(db, 'movimentacoes_estoque_2026'), orderBy('timestamp', 'desc'));
-                const unsubscribe = onSnapshot(q, (snapshot) => {
+                const unsubscribeMovs = onSnapshot(q, (snapshot) => {
                     setMovements(snapshot.docs.map(d => ({id: d.id, ...d.data()})));
                     setLoading(false);
                 });
-                return () => unsubscribe();
+                return () => { unsubscribeItems(); unsubscribeMovs(); };
             }, []);
 
             if (loading) return <div className="text-center py-10 text-slate-500">Carregando histórico...</div>;
 
+            const displayedMovements = movements.filter(mov => {
+                const cat = mov.itemCategory || itemsCatMap[mov.itemName];
+                
+                // Filtro por Perfil
+                let showByRole = true;
+                if (userRole === 'admin' && cat) showByRole = CAT_GROUPS.admin.includes(cat);
+                if (userRole === 'logistics' && cat) showByRole = CAT_GROUPS.logistics.includes(cat);
+
+                // Filtro por Tipo (Entrada/Saída)
+                let showByType = true;
+                if (typeFilter !== 'all') showByType = mov.type === typeFilter;
+
+                return showByRole && showByType;
+            });
+
             return (
                 <div className="animate-in fade-in space-y-4">
-                    <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2 mb-4"><Icons.Activity /> Histórico de Movimentações</h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                        <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2"><Icons.Activity /> Histórico de Movimentações</h3>
+                        <div className="flex gap-2 bg-slate-100 p-1 rounded-full border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
+                            <button onClick={() => setTypeFilter('all')} className={`px-4 py-1.5 text-xs font-bold rounded-full transition ${typeFilter === 'all' ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-600 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}>Todas</button>
+                            <button onClick={() => setTypeFilter('in')} className={`px-4 py-1.5 text-xs font-bold rounded-full transition flex items-center gap-1 ${typeFilter === 'in' ? 'bg-green-100 text-green-700 shadow-sm border border-green-200' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}><Icons.ArrowUpCircle/> Entradas</button>
+                            <button onClick={() => setTypeFilter('out')} className={`px-4 py-1.5 text-xs font-bold rounded-full transition flex items-center gap-1 ${typeFilter === 'out' ? 'bg-red-100 text-red-700 shadow-sm border border-red-200' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}><Icons.ArrowDownCircle/> Saídas</button>
+                        </div>
+                    </div>
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
@@ -763,7 +787,7 @@
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {movements.map(mov => (
+                                {displayedMovements.map(mov => (
                                     <tr key={mov.id} className="hover:bg-slate-50">
                                         <td className="p-3 text-slate-500 text-xs">{formatDate(mov.timestamp)}</td>
                                         <td className="p-3 font-medium text-slate-700">{mov.itemName}</td>
@@ -778,7 +802,7 @@
                                         <td className="p-3 text-xs text-slate-600">{mov.user}</td>
                                     </tr>
                                 ))}
-                                {movements.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-400">Nenhuma movimentação registrada.</td></tr>}
+                                {displayedMovements.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-400">Nenhuma movimentação encontrada com este filtro.</td></tr>}
                             </tbody>
                         </table>
                     </div>
@@ -791,7 +815,7 @@
             const [searchTerm, setSearchTerm] = React.useState('');
             const [showForm, setShowForm] = React.useState(false);
             const [isInventoryLocked, setIsInventoryLocked] = React.useState(true);
-            const [newItem, setNewItem] = React.useState({ name: '', category: 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '' });
+            const [newItem, setNewItem] = React.useState({ name: '', category: userRole === 'logistics' ? 'reagente' : 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '' });
             const [filterTab, setFilterTab] = React.useState('Todos');
 
             React.useEffect(() => {
@@ -817,7 +841,7 @@
 
                 try { 
                     await addDoc(collection(db, 'estoque_lab_2026'), itemToSave); 
-                    setNewItem({ name: '', category: 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '' }); 
+                    setNewItem({ name: '', category: userRole === 'logistics' ? 'reagente' : 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '' }); 
                     setShowForm(false); 
                 } catch (e) { 
                     console.error(e); 
@@ -898,7 +922,11 @@
                                 className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${filterTab === tab ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700'}`}
                             >
                                 {tab === 'OK' ? 'OK / Disponível' : tab}
-                                {tab !== 'Todos' && <span className="ml-1 opacity-75">({displayedItems.filter(i => getStatus(i.currentQty, i.minQty) === tab).length})</span>}
+                                {tab !== 'Todos' && <span className="ml-1 opacity-75">({items.filter(i => {
+                                    if (userRole === 'admin' && !CAT_GROUPS.admin.includes(i.category)) return false;
+                                    if (userRole === 'logistics' && !CAT_GROUPS.logistics.includes(i.category)) return false;
+                                    return getStatus(i.currentQty, i.minQty) === tab;
+                                }).length})</span>}
                             </button>
                         ))}
                     </div>
@@ -998,7 +1026,6 @@
                     const qty = parseInt(r.quantity) || 1;
                     const itemName = r.item ? r.item.trim() : 'Desconhecido';
 
-                    // Contagem de Status e Tempo de Atendimento
                     if (r.status === 'approved') {
                         approved++;
                         if (r.statusUpdatedAt && r.createdAt) {
@@ -1015,14 +1042,11 @@
                         pending++;
                     }
 
-                    // Contagem de Itens (Volume consumido geral)
                     itemCounts[itemName] = (itemCounts[itemName] || 0) + qty;
 
-                    // Contagem por Setor (Volume de Pedidos)
                     const sector = r.requesterSector || 'Outros';
                     sectorCounts[sector] = (sectorCounts[sector] || 0) + 1;
 
-                    // Contagem Mensal
                     if (r.createdAt) {
                         const d = new Date(r.createdAt);
                         const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -1032,7 +1056,6 @@
                     }
                 });
 
-                // Formatação do Tempo Médio
                 let avgTimeLabel = "-";
                 if (fulfilledCount > 0) {
                     const avgMs = totalFulfillmentTimeMs / fulfilledCount;
@@ -1042,13 +1065,11 @@
                     else avgTimeLabel = `${(hours / 24).toFixed(1)} dias`;
                 }
 
-                // Rankings e Ordenação
                 const topItems = Object.entries(itemCounts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count).slice(0, 5);
                 const topMissingItems = Object.entries(missingItemCounts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count).slice(0, 5);
                 const topSectors = Object.entries(sectorCounts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count);
                 const monthlyData = Object.keys(monthCounts).sort().map(k => monthCounts[k]);
 
-                // Valores Máximos para os gráficos de barra
                 const maxMonthCount = Math.max(...monthlyData.map(m => m.count), 1);
                 const maxSectorCount = Math.max(...topSectors.map(s => s.count), 1);
                 const maxItemCount = Math.max(...topItems.map(i => i.count), 1);
@@ -1072,7 +1093,6 @@
                         <p className="text-xs text-blue-600 mt-1">Visão gerencial consolidada de todos os registros do LabFlow.</p>
                     </div>
 
-                    {/* KPIs Principais */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
                             <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Total Pedidos</div>
@@ -1093,7 +1113,6 @@
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Taxa de Atendimento */}
                         <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-center">
                             <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">Taxa de Conversão (Finalizados)</h3>
                             <div className="flex h-8 rounded-full overflow-hidden mb-4 bg-slate-100 shadow-inner">
@@ -1106,7 +1125,6 @@
                             </div>
                         </div>
 
-                        {/* Evolução Mensal */}
                         <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
                             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.Activity /> Pedidos por Mês</h3>
                             <div className="flex items-end h-32 gap-3 pb-2 border-b border-slate-100">
@@ -1127,7 +1145,6 @@
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {/* Ranking de Setores */}
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.Building2 /> Setores que Mais Consomem</h3>
                             <div className="space-y-5">
@@ -1146,7 +1163,6 @@
                             </div>
                         </div>
 
-                        {/* Itens Mais Solicitados */}
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.ShoppingCart /> Top 5 Itens (Volume Geral)</h3>
                             <div className="space-y-5">
@@ -1165,7 +1181,6 @@
                             </div>
                         </div>
 
-                        {/* Itens Mais em Falta */}
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.PackageX /> Top 5 Itens (Em Falta)</h3>
                             <div className="space-y-5">
@@ -1210,7 +1225,9 @@
             const [selectedReqId, setSelectedReqId] = React.useState(null);
             const [stockMessage, setStockMessage] = React.useState('');
             const [isHistoryLocked, setIsHistoryLocked] = React.useState(true);
-            const [activeReqTab, setActiveReqTab] = React.useState('admin');
+
+            // Sub-Abas para Técnicos e Master
+            const [techSubTab, setTechSubTab] = React.useState('admin'); // 'admin' ou 'logistics'
 
             // ESTADOS PARA SUGESTÃO
             const [showSuggestionModal, setShowSuggestionModal] = React.useState(false);
@@ -1259,7 +1276,6 @@
             React.useEffect(() => { if (appUser && (newItem || quantity || notes)) { localStorage.setItem('labflow_draft_v1', JSON.stringify({ item: newItem, quantity, unit, category, notes, isUrgent })); setDraftSaved(true); setTimeout(() => setDraftSaved(false), 2000); } }, [newItem, quantity, unit, category, notes, isUrgent, appUser]);
             React.useEffect(() => { if (!user) return; onSnapshot(query(collection(db, 'solicitacoes_lab_2026'), orderBy('createdAt', 'desc')), s => setRequests(s.docs.filter(d => d.id !== 'NOTICES_CONFIG').map(d => ({ id: d.id, ...d.data() })))); }, [user]);
             
-            // Fetch Sugestões
             React.useEffect(() => {
                 if (!user) return;
                 const q = query(collection(db, 'sugestoes_lab_2026'), orderBy('createdAt', 'desc'));
@@ -1267,22 +1283,11 @@
                 return () => unsubscribe();
             }, [user]);
 
-            // Controle do Dark Mode Global
             React.useEffect(() => {
                 if (isDarkMode) { document.documentElement.classList.add('dark'); localStorage.setItem('labflow_theme', 'dark'); }
                 else { document.documentElement.classList.remove('dark'); localStorage.setItem('labflow_theme', 'light'); }
             }, [isDarkMode]);
 
-            // Sincroniza a categoria padrão ao trocar de aba (para Lab Tech e Master)
-            React.useEffect(() => {
-                if (appUser && (appUser.role === 'lab_tech' || appUser.role === 'master')) {
-                    if (activeReqTab === 'admin' && !CAT_GROUPS.admin.includes(category)) setCategory('epi');
-                    if (activeReqTab === 'logistics' && !CAT_GROUPS.logistics.includes(category)) setCategory('reagente');
-                    setNewItem(''); // Clear item when switching tabs to avoid confusion
-                }
-            }, [activeReqTab, appUser]);
-
-            // --- AUTOFILL INVENTORY FETCH ---
             React.useEffect(() => { 
                 if (!user) return; 
                 const q = query(collection(db, 'estoque_lab_2026'), orderBy('name')); 
@@ -1292,30 +1297,25 @@
                     s.docs.forEach(d => {
                         const data = d.data();
                         map[data.name.trim().toLowerCase()] = data;
+                        
+                        // Respeita a subaba atual para preencher o combobox
+                        if (appUser && (appUser.role === 'lab_tech' || appUser.role === 'master')) {
+                            const isLogItem = CAT_GROUPS.logistics.includes(data.category);
+                            if (techSubTab === 'admin' && isLogItem) return;
+                            if (techSubTab === 'logistics' && !isLogItem) return;
+                        }
+                        
                         names.push(data.name);
                     });
                     setInventoryNames(names);
                     setInventoryMap(map);
                 }); 
                 return () => unsub(); 
-            }, [user]);
-
-            const filteredInventoryNames = React.useMemo(() => {
-                return inventoryNames.filter(name => {
-                    const match = inventoryMap[name.toLowerCase()];
-                    if (!match) return false;
-                    if (appUser && (appUser.role === 'lab_tech' || appUser.role === 'master')) {
-                        if (activeReqTab === 'admin') return CAT_GROUPS.admin.includes(match.category);
-                        if (activeReqTab === 'logistics') return CAT_GROUPS.logistics.includes(match.category);
-                    }
-                    return true;
-                }).sort((a, b) => a.localeCompare(b));
-            }, [inventoryNames, inventoryMap, activeReqTab, appUser]);
+            }, [user, appUser, techSubTab]);
 
             const handleItemChange = (e) => {
                 const val = e.target.value;
                 setNewItem(val);
-                // Lógica de Auto-fill
                 const match = inventoryMap[val.trim().toLowerCase()];
                 if (match) {
                     setCategory(match.category);
@@ -1358,7 +1358,6 @@
                     storageLocation: storageLocationReq, 
                     requesterName: appUser.name, 
                     requesterSector: sectorReq || appUser.sector, 
-                    requesterRole: appUser.role, // Adicionado para identificar a função
                     requesterId: user.uid, 
                     createdAt: new Date().toISOString(), 
                     status: 'pending', 
@@ -1414,13 +1413,11 @@
                 } else if (appUser.role === 'admin') {
                     data = data.filter(r => CAT_GROUPS.admin.includes(r.category));
                 } else if (appUser.role === 'master' && type === 'logistics') {
-                    // Exporta APENAS os itens de logística que ainda estão pendentes (Para entregar ao almoxarifado)
                     data = requests.filter(r => CAT_GROUPS.logistics.includes(r.category) && r.status === 'pending');
                 }
 
                 if (!data.length) return alert("Nada para exportar.");
                 
-                // ORDENAÇÃO POR SETOR
                 const priorityOrder = ['QGI', 'MIC', 'ESP', 'FQA'];
                 data.sort((a, b) => {
                     const sectorA = a.requesterSector || 'OUTROS';
@@ -1442,10 +1439,7 @@
                     head: [["Data", "Cód", "Item", "Local", "Qtd", "Cat", "Solicitante", "Status"]], 
                     body: data.map(r => {
                         const rawLabel = CAT_LABELS[r.category] || r.category;
-                        // Regex para remover emojis
                         const cleanLabel = rawLabel.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
-                        
-                        // Translate Status
                         let statusPT = 'Pendente';
                         if (r.status === 'approved') statusPT = 'Disponível';
                         if (r.status === 'out_of_stock') statusPT = 'Em Falta';
@@ -1465,17 +1459,15 @@
                 });
                 doc.save('relatorio.pdf');
             };
-            
-            // --- NOVA FUNÇÃO: EXPORTAR CONSUMO MENSAL POR SETOR (COM GRÁFICO E DETALHES) ---
+
             const handleExportConsumptionPDF = () => {
                 if (!consumptionMonth) return;
                 const [yearStr, monthStr] = consumptionMonth.split('-');
                 const targetYear = parseInt(yearStr);
-                const targetMonth = parseInt(monthStr) - 1; // 0-indexed no JS
+                const targetMonth = parseInt(monthStr) - 1; 
                 
                 const monthName = new Date(targetYear, targetMonth, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
                 
-                // Filtra os entregues do mês selecionado
                 const currentMonthRequests = requests.filter(r => {
                     if(r.status !== 'approved') return false;
                     const reqDate = new Date(r.statusUpdatedAt || r.createdAt);
@@ -1487,7 +1479,6 @@
                     return;
                 }
 
-                // Agrupamento de dados: Setor -> Total & Itens
                 const sectorData = {};
                 currentMonthRequests.forEach(r => {
                     const sector = r.requesterSector || 'OUTROS';
@@ -1503,7 +1494,6 @@
                     sectorData[sector].items[itemKey] = (sectorData[sector].items[itemKey] || 0) + qty;
                 });
 
-                // Ordena os setores por quem gastou mais (Volume total)
                 const chartData = Object.entries(sectorData).sort((a, b) => b[1].total - a[1].total);
 
                 const { jsPDF } = window.jspdf; 
@@ -1516,7 +1506,6 @@
                 doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 33);
                 doc.text(`Gerado por: ${appUser.name} (${appUser.role === 'master' ? 'Gestor' : 'Admin'})`, 14, 38);
                 
-                // Gráfico de Barras
                 let yPos = 50;
                 const maxVal = chartData[0][1].total || 1;
                 const maxBarWidth = 120;
@@ -1531,35 +1520,25 @@
 
                 chartData.forEach(([sector, data]) => {
                     const value = data.total;
-                    // Texto do setor
                     doc.text(sector.length > 22 ? sector.substring(0, 22) + '...' : sector, 14, yPos + 4);
-                    
-                    // Barra
                     const barWidth = (value / maxVal) * maxBarWidth;
                     doc.setFillColor(37, 99, 235);
                     doc.rect(55, yPos, barWidth, 6, 'F');
-                    
-                    // Valor
                     doc.setTextColor(80, 80, 80);
                     doc.text(value.toString(), 55 + barWidth + 2, yPos + 4);
                     doc.setTextColor(0, 0, 0);
-                    
                     yPos += 9;
                 });
 
-                // Tabela Detalhada (Setor -> Itens)
                 yPos += 10;
                 const tableRows = [];
 
                 chartData.forEach(([sector, data]) => {
-                    // Cabeçalho do Setor
                     tableRows.push([{
                         content: `▶ SETOR: ${sector.toUpperCase()} (Total Geral: ${data.total})`, 
                         colSpan: 2, 
                         styles: { fontStyle: 'bold', fillColor: [241, 245, 249], textColor: [30, 64, 175] }
                     }]);
-                    
-                    // Itens do setor ordenados do mais consumido para o menos
                     Object.entries(data.items).sort((a,b) => b[1] - a[1]).forEach(([item, qty]) => {
                         tableRows.push([item, qty.toString()]);
                     });
@@ -1578,7 +1557,6 @@
                 setShowConsumptionModal(false);
             };
 
-            // --- NOVA FUNÇÃO: EXPORTAR PARA EXCEL (EXCELJS) ---
             const handleExportExcel = async () => {
                 setIsExportingExcel(true);
                 try {
@@ -1586,19 +1564,16 @@
                     workbook.creator = appUser.name;
                     workbook.created = new Date();
 
-                    // --- PLANILHA 1: RESUMO / DASHBOARD ---
                     const wsResumo = workbook.addWorksheet('Dashboard Gerencial');
                     wsResumo.columns = [{ width: 35 }, { width: 25 }, { width: 35 }, { width: 25 }];
                     
-                    // Cabeçalho da Planilha
                     wsResumo.mergeCells('A1:D2');
                     const titleCell = wsResumo.getCell('A1');
                     titleCell.value = 'LABFLOW 2026 - RELATÓRIO ANALÍTICO GERAL';
                     titleCell.font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
-                    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }; // Azul muito escuro
+                    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } }; 
                     titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
 
-                    // Informações Gerais
                     wsResumo.getCell('A4').value = 'MÉTRICAS GERAIS';
                     wsResumo.getCell('A4').font = { bold: true, size: 12, color: { argb: 'FF1E3A8A' } };
                     
@@ -1612,7 +1587,6 @@
                     wsResumo.addRow(['Itens Em Falta (Não Atendidos)', totalMissing]);
                     wsResumo.addRow(['Itens Pendentes / Em Análise', totalPending]);
 
-                    // Consumo por Setor
                     wsResumo.getCell('A10').value = 'CONSUMO POR SETOR (VOLUME DE PEDIDOS)';
                     wsResumo.getCell('A10').font = { bold: true, size: 12, color: { argb: 'FF1E3A8A' } };
                     wsResumo.getRow(11).values = ['Setor', 'Total de Pedidos'];
@@ -1631,7 +1605,6 @@
                         currentRow++;
                     });
 
-                    // Estilização simples do Dashboard
                     wsResumo.eachRow((row, rowNumber) => {
                         row.eachCell((cell) => {
                             cell.border = {
@@ -1643,7 +1616,6 @@
                         });
                     });
 
-                    // --- PLANILHA 2: HISTÓRICO DE PEDIDOS ---
                     const wsPedidos = workbook.addWorksheet('Solicitações');
                     wsPedidos.columns = [
                         { header: 'Data do Pedido', key: 'data', width: 22 },
@@ -1658,9 +1630,8 @@
                         { header: 'Observações / Notas', key: 'obs', width: 40 },
                     ];
 
-                    // Estilizar cabeçalho Pedidos
                     wsPedidos.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                    wsPedidos.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } }; // Azul
+                    wsPedidos.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } }; 
 
                     requests.forEach(r => {
                         let statusPt = r.status === 'approved' ? 'Entregue' : (r.status === 'out_of_stock' ? 'Em Falta' : 'Pendente');
@@ -1678,7 +1649,6 @@
                         });
                     });
 
-                    // Cores no Status da Planilha Pedidos
                     wsPedidos.eachRow((row, rowNumber) => {
                         if(rowNumber > 1) {
                             const statusCell = row.getCell('H');
@@ -1687,13 +1657,12 @@
                             } else if(statusCell.value === 'Em Falta') {
                                 statusCell.font = { color: { argb: 'FFDC2626' }, bold: true };
                             } else {
-                                statusCell.font = { color: { argb: 'FFD97706' }, bold: true }; // Amarelo/Laranja Pendente
+                                statusCell.font = { color: { argb: 'FFD97706' }, bold: true }; 
                             }
                         }
                     });
                     wsPedidos.autoFilter = 'A1:J1';
 
-                    // --- PLANILHA 3: ESTOQUE ---
                     const wsEstoque = workbook.addWorksheet('Posição do Estoque');
                     wsEstoque.columns = [
                         { header: 'Item / Material', key: 'item', width: 45 },
@@ -1706,7 +1675,7 @@
                     ];
 
                     wsEstoque.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-                    wsEstoque.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } }; // Verde Teak
+                    wsEstoque.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
 
                     const inventoryArray = Object.values(inventoryMap);
                     inventoryArray.sort((a,b) => a.name.localeCompare(b.name)).forEach(item => {
@@ -1728,7 +1697,6 @@
                         });
                     });
 
-                    // Cores no Status da Planilha Estoque
                     wsEstoque.eachRow((row, rowNumber) => {
                         if(rowNumber > 1) {
                             const statusCell = row.getCell('G');
@@ -1745,7 +1713,6 @@
                     });
                     wsEstoque.autoFilter = 'A1:G1';
 
-                    // Salvar Arquivo
                     const buffer = await workbook.xlsx.writeBuffer();
                     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
                     window.saveAs(blob, `LabFlow_Relatorio_Excel_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -1758,7 +1725,6 @@
                 }
             };
 
-            // --- NOVA FUNÇÃO: ARQUIVAR CICLO MANUAL (ADM) ---
             const handleArchiveCycle = async () => {
                 if (!confirm("Isso moverá todos os itens 'Disponível' ou 'Em Falta' da Administração para o histórico. Confirmar?")) return;
                 const itemsToArchive = requests.filter(r => (r.status === 'approved' || r.status === 'out_of_stock') && !r.isArchived && CAT_GROUPS.admin.includes(r.category));
@@ -1772,36 +1738,35 @@
                 if (!appUser) return { activeList: [], historyList: [], masterHistoryList: [] };
                 let list = requests.filter(r => r.item.toLowerCase().includes(searchTerm.toLowerCase()) || r.requesterName.toLowerCase().includes(searchTerm.toLowerCase()));
                 
+                // Filtro para separar abas de Administração x Almoxarifado para Lab Techs e Gestores
                 if (appUser.role === 'admin') {
                     list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
+                } else if (appUser.role === 'logistics') {
+                    list = list.filter(r => CAT_GROUPS.logistics.includes(r.category));
+                } else if (appUser.role === 'lab_tech' || appUser.role === 'master') {
+                    if (techSubTab === 'admin') {
+                        list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
+                    } else if (techSubTab === 'logistics') {
+                        list = list.filter(r => CAT_GROUPS.logistics.includes(r.category));
+                    }
                 }
                 
                 const active = [], history = [], masterHistory = [];
                 list.forEach(r => {
                     const isLogistics = CAT_GROUPS.logistics.includes(r.category);
-                    const finished = r.status === 'approved' || r.status === 'out_of_stock';
                     
                     if (isLogistics) {
-                        const isReplenishment = (r.requesterRole === 'master' || r.requesterSector === 'GESTOR DO SISTEMA');
-                        
+                        const finished = r.status === 'approved' || r.status === 'out_of_stock';
                         if (r.isArchived || finished) {
                             masterHistory.push(r);
-                            if (appUser.role === 'lab_tech' && !r.isArchived) {
-                                const recent = isRecent(r.statusUpdatedAt || r.createdAt, 7);
-                                if (finished && recent) active.push(r);
-                                else history.push(r);
-                            }
                         } else {
-                            if (appUser.role === 'master' || appUser.role === 'lab_tech') {
-                                active.push(r);
-                            } else if (appUser.role === 'logistics' && !isReplenishment) {
-                                active.push(r);
-                            }
+                            if (appUser.role === 'master' || appUser.role === 'logistics' || appUser.role === 'lab_tech') active.push(r);
                         }
                     } else {
                         if (r.isArchived) {
                             history.push(r);
                         } else {
+                            const finished = r.status === 'approved' || r.status === 'out_of_stock';
                             if (appUser.role === 'admin' || appUser.role === 'master') {
                                 active.push(r); 
                             } else {
@@ -1812,28 +1777,12 @@
                     }
                 });
                 return { activeList: active, historyList: history, masterHistoryList: masterHistory };
-            }, [requests, searchTerm, appUser]);
-
-            const displayedActiveList = React.useMemo(() => {
-                if (appUser && (appUser.role === 'lab_tech' || appUser.role === 'master')) {
-                    if (activeReqTab === 'admin') return activeList.filter(r => CAT_GROUPS.admin.includes(r.category));
-                    if (activeReqTab === 'logistics') return activeList.filter(r => CAT_GROUPS.logistics.includes(r.category));
-                }
-                return activeList;
-            }, [activeList, activeReqTab, appUser]);
-
-            const displayedHistoryList = React.useMemo(() => {
-                if (appUser && (appUser.role === 'lab_tech' || appUser.role === 'master')) {
-                    if (activeReqTab === 'admin') return historyList.filter(r => CAT_GROUPS.admin.includes(r.category));
-                    if (activeReqTab === 'logistics') return historyList.filter(r => CAT_GROUPS.logistics.includes(r.category));
-                }
-                return historyList;
-            }, [historyList, activeReqTab, appUser]);
+            }, [requests, searchTerm, appUser, techSubTab]);
 
             const groupedHistoryArray = React.useMemo(() => {
                 const groups = [];
                 const map = new Map();
-                displayedHistoryList.forEach(req => {
+                historyList.forEach(req => {
                     const d = new Date(req.createdAt);
                     const monthYear = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
                     const capitalizedStr = monthYear.charAt(0).toUpperCase() + monthYear.slice(1);
@@ -1846,7 +1795,7 @@
                     else map.get(capitalizedStr).delivered.push(req);
                 });
                 return groups.map(g => ({ month: g, ...map.get(g) }));
-            }, [displayedHistoryList]);
+            }, [historyList]);
 
             const groupedMasterHistoryArray = React.useMemo(() => {
                 const groups = [];
@@ -1865,8 +1814,6 @@
                 return groups.map(g => ({ month: g, ...map.get(g) }));
             }, [masterHistoryList]);
 
-            const missingHistory = displayedHistoryList.filter(r => r.status === 'out_of_stock');
-            const deliveredHistory = displayedHistoryList.filter(r => r.status === 'approved');
             const isCarnival = isCarnivalSeason();
 
             if (loading) return <div className="flex h-screen items-center justify-center text-slate-500">Conectando...</div>;
@@ -1878,17 +1825,14 @@
                     <header className={`bg-white text-slate-800 shadow-sm border-b border-slate-200 sticky top-0 z-10 ${isCarnival ? 'header-bg' : ''}`}>
                         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center"><div className="flex items-center gap-4 select-none"><InstitutionalLogo />{isCarnival && <span className="bg-pink-100 text-pink-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-200 animate-pulse">🎭 CARNAVAL</span>}<div className="hidden sm:block h-8 w-px bg-slate-200"></div><div><h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1><p className="text-xs text-slate-500 uppercase">{appUser.role === 'master' ? 'Gestor do Sistema' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'logistics' ? 'Logística' : appUser.sector}</p></div></div><div className="flex items-center gap-2">
                             
-                            {/* Botão do Dark Mode */}
                             <button onClick={() => setIsDarkMode(!isDarkMode)} className="text-slate-400 hover:text-yellow-500 p-2 transition mr-1" title="Alternar Tema Escuro">
                                 {isDarkMode ? <Icons.Sun /> : <Icons.Moon />}
                             </button>
 
-                            {/* Novo botão de Relatório Mensal de Consumo (Abre Modal) */}
                             {(appUser.role === 'admin' || appUser.role === 'master') && (
                                 <button onClick={() => setShowConsumptionModal(true)} className="flex items-center gap-2 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 text-xs font-bold py-2 px-3 rounded transition" title="Gera PDF com gráfico de consumo e itens detalhados por Setor"><Icons.BarChart /><span className="hidden sm:inline">PDF Consumo</span></button>
                             )}
 
-                            {/* Novo botão de ExcelJS */}
                             {(appUser.role === 'admin' || appUser.role === 'master') && (
                                 <button onClick={handleExportExcel} disabled={isExportingExcel} className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold py-2 px-3 rounded transition" title="Exportar Planilha Excel Detalhada com Dashboard">
                                     {isExportingExcel ? <Icons.RefreshCw className="animate-spin" /> : <Icons.FileSpreadsheet />}
@@ -1932,22 +1876,25 @@
                                     )}
                                 </button>
                             )}
-                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('dashboard')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'dashboard' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                            {(appUser.role === 'admin' || appUser.role === 'master' || appUser.role === 'logistics') && <button onClick={() => setView('dashboard')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'dashboard' ? (isCarnival ? 'bg-pink-600 text-white border-pink-600 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
                                 <Icons.BarChart /> Dashboard
                             </button>}
                         </div>
+
+                        {/* Sub-Abas Inteligentes para Equipe Técnica e Master */}
+                        {(appUser.role === 'lab_tech' || appUser.role === 'master') && (view === 'active' || view === 'history') && (
+                            <div className="flex gap-2 mb-6 border-b border-slate-200 pb-2">
+                                <button onClick={() => setTechSubTab('admin')} className={`px-4 py-1.5 text-sm font-bold rounded-full transition-all border ${techSubTab === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700'}`}>
+                                    📎 Pedidos Administração
+                                </button>
+                                <button onClick={() => setTechSubTab('logistics')} className={`px-4 py-1.5 text-sm font-bold rounded-full transition-all border ${techSubTab === 'logistics' ? 'bg-indigo-100 text-indigo-700 border-indigo-200 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700'}`}>
+                                    🧪 Pedidos Almoxarifado
+                                </button>
+                            </div>
+                        )}
+
                         {view === 'active' && (
                             <>
-                                {(appUser.role === 'lab_tech' || appUser.role === 'master') && (
-                                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2 border-b border-slate-200">
-                                        <button onClick={() => setActiveReqTab('admin')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${activeReqTab === 'admin' ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700'}`}>
-                                            📎 Pedidos Administração
-                                        </button>
-                                        <button onClick={() => setActiveReqTab('logistics')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${activeReqTab === 'logistics' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700'}`}>
-                                            🧪 Pedidos Almoxarifado
-                                        </button>
-                                    </div>
-                                )}
                                 {(appUser.role === 'lab_tech' || appUser.role === 'master') && (
                                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-8 relative">
                                         {draftSaved && <div className="absolute top-0 right-0 bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded-bl-lg flex items-center gap-1"><Icons.Save /> Salvo</div>}
@@ -1980,7 +1927,7 @@
                                                             required
                                                         >
                                                             <option value="" disabled>Selecione um item do estoque...</option>
-                                                            {filteredInventoryNames.map((name, i) => (
+                                                            {inventoryNames.sort((a, b) => a.localeCompare(b)).map((name, i) => (
                                                                 <option key={i} value={name}>{name}</option>
                                                             ))}
                                                         </select>
@@ -2004,15 +1951,24 @@
                                                 <div className="md:col-span-3">
                                                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoria</label>
                                                     <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer">
-                                                        {(appUser.role !== 'lab_tech' || activeReqTab === 'admin') && (
+                                                        {techSubTab === 'admin' || (appUser.role === 'master' && !CAT_GROUPS.logistics.includes(category)) ? (
                                                             <optgroup label="Adm (Cicilha)">
                                                                 <option value="epi">🥽 EPI</option>
                                                                 <option value="escritorio">📎 Escritório</option>
                                                                 <option value="consumivel_adm">🗑️ Consumível (Adm)</option>
                                                             </optgroup>
-                                                        )}
-                                                        {(appUser.role !== 'lab_tech' || activeReqTab === 'logistics') && (
+                                                        ) : (
                                                             <optgroup label="Almoxarifado (Logística)">
+                                                                <option value="reagente">🧪 Reagente</option>
+                                                                <option value="materiais">📦 Materiais</option>
+                                                                <option value="consumivel_log">🧴 Consumível (Lab)</option>
+                                                            </optgroup>
+                                                        )}
+                                                        {appUser.role === 'master' && (
+                                                            <optgroup label="Todas as Categorias">
+                                                                <option value="epi">🥽 EPI</option>
+                                                                <option value="escritorio">📎 Escritório</option>
+                                                                <option value="consumivel_adm">🗑️ Consumível (Adm)</option>
                                                                 <option value="reagente">🧪 Reagente</option>
                                                                 <option value="materiais">📦 Materiais</option>
                                                                 <option value="consumivel_log">🧴 Consumível (Lab)</option>
@@ -2048,28 +2004,17 @@
                                 )}
                                 <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6"><div className="relative w-full md:w-96"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div><input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div>
                                     <div className="flex items-center gap-4">
-                                        <div className="text-sm font-medium text-slate-600 bg-slate-200 px-3 py-1 rounded-full">Exibindo: {displayedActiveList.length}</div>
-                                        {/* BOTÃO MANUAL DE ARQUIVAR (SÓ ADM/MASTER) */}
+                                        <div className="text-sm font-medium text-slate-600 bg-slate-200 px-3 py-1 rounded-full">Exibindo: {activeList.length}</div>
                                         {(appUser.role === 'admin' || appUser.role === 'master') && (
                                             <button onClick={handleArchiveCycle} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded shadow flex items-center gap-2 animate-in fade-in"><Icons.Archive /> Fechar Ciclo</button>
                                         )}
                                     </div>
                                 </div>
-                                <div className="space-y-3">{displayedActiveList.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhum pedido pendente ou recente.</div> : displayedActiveList.map((req) => (<RequestCard key={req.id} req={req} role={appUser.role} onDelete={deleteRequest} onUpdateStatus={updateStatus} onOutOfStock={handleOutOfStockClick} onSaveStockInfo={handleSaveStockInfo} onApprovePartial={handleApprovePartial} onUpdateReq={handleUpdateReq} onReceiveLogistics={handleReceiveLogistics} currentUser={appUser} />))}</div>
+                                <div className="space-y-3">{activeList.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhum pedido pendente ou recente.</div> : activeList.map((req) => (<RequestCard key={req.id} req={req} role={appUser.role} onDelete={deleteRequest} onUpdateStatus={updateStatus} onOutOfStock={handleOutOfStockClick} onSaveStockInfo={handleSaveStockInfo} onApprovePartial={handleApprovePartial} onUpdateReq={handleUpdateReq} onReceiveLogistics={handleReceiveLogistics} currentUser={appUser} />))}</div>
                             </>
                         )}
                         {view === 'history' && (
                             <div className="space-y-8 animate-in fade-in">
-                                {(appUser.role === 'lab_tech' || appUser.role === 'master') && (
-                                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2 border-b border-slate-200">
-                                        <button onClick={() => setActiveReqTab('admin')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${activeReqTab === 'admin' ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700'}`}>
-                                            📎 Histórico Administração
-                                        </button>
-                                        <button onClick={() => setActiveReqTab('logistics')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${activeReqTab === 'logistics' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700'}`}>
-                                            🧪 Histórico Almoxarifado
-                                        </button>
-                                    </div>
-                                )}
                                 <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-4">
                                     <div className="relative w-full md:w-96">
                                         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
