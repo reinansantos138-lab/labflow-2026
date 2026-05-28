@@ -211,20 +211,19 @@
             const q = query(collection(db, 'estoque_lab_2026'), where('name', '==', itemName));
             const querySnapshot = await getDocs(q);
 
-            let stockItem = null;
+            let matchingItems = [];
 
             if (!querySnapshot.empty) {
-                stockItem = querySnapshot.docs[0];
+                matchingItems = querySnapshot.docs.map(d => ({ doc: d, id: d.id, ...d.data() }));
             } else {
                 // Fallback: Busca todos e compara ignorando espaços em branco e letras maiúsculas/minúsculas
                 const allStock = await getDocs(collection(db, 'estoque_lab_2026'));
-                const fallbackDoc = allStock.docs.find(d => d.data().name && d.data().name.trim().toLowerCase() === itemName.trim().toLowerCase());
-                if (fallbackDoc) {
-                    stockItem = fallbackDoc;
-                }
+                matchingItems = allStock.docs
+                    .filter(d => d.data().name && d.data().name.trim().toLowerCase() === itemName.trim().toLowerCase())
+                    .map(d => ({ doc: d, id: d.id, ...d.data() }));
             }
 
-            if (!stockItem) {
+            if (matchingItems.length === 0) {
                 if (origin === 'reposicao_logistica') {
                     throw new Error('NOT_IN_STOCK');
                 }
@@ -232,11 +231,26 @@
                 return;
             }
 
-            const currentQty = parseInt(stockItem.data().currentQty || 0);
+            // Se for uma SAÍDA e houver múltiplos lotes, prioriza o que vence primeiro e que tenha saldo
+            if (type === 'out') {
+                matchingItems.sort((a, b) => {
+                    if (!a.validade) return 1; // Itens sem validade vão pro final da fila
+                    if (!b.validade) return -1;
+                    return new Date(a.validade) - new Date(b.validade);
+                });
+            }
+
             const change = parseInt(quantity);
+            // Procura o primeiro lote que tenha quantidade suficiente para a baixa
+            let stockItem = matchingItems.find(item => parseInt(item.currentQty || 0) >= change);
+            
+            // Se nenhum lote individual tiver o valor total, pega o que vence primeiro mesmo assim (vai cair no erro de saldo abaixo)
+            if (!stockItem) stockItem = matchingItems[0];
+
+            const currentQty = parseInt(stockItem.currentQty || 0);
 
             if (type === 'out' && currentQty < change) {
-                throw new Error(`Estoque insuficiente de "${itemName}". Atual: ${currentQty}, Necessário: ${change}`);
+                throw new Error(`Estoque insuficiente de "${itemName}" (Lote: ${stockItem.lote || 'N/A'}). Atual: ${currentQty}, Necessário: ${change}`);
             }
 
             const newQty = type === 'in' ? currentQty + change : currentQty - change;
@@ -249,7 +263,7 @@
             await addDoc(collection(db, 'movimentacoes_estoque_2026'), {
                 itemId: stockItem.id,
                 itemName: itemName,
-                itemCategory: stockItem.data().category, // Salva categoria para os filtros
+                lote: stockItem.lote || '', // Registra qual lote foi movimentado
                 type: type,
                 quantity: change,
                 origin: origin,
@@ -262,21 +276,7 @@
             });
         };
 
-        // --- COMPONENTES ---
-
-        const LoginScreen = ({ onLogin }) => {
-            const [isRegistering, setIsRegistering] = React.useState(false);
-            const [name, setName] = React.useState('');
-            const [email, setEmail] = React.useState('');
-            const [password, setPassword] = React.useState('');
-            const [confirmPassword, setConfirmPassword] = React.useState('');
-            const [role, setRole] = React.useState('lab_tech');
-            const [sector, setSector] = React.useState('');
-            const [accessCode, setAccessCode] = React.useState('');
-            const [error, setError] = React.useState('');
-            const [isLoading, setIsLoading] = React.useState(false);
-
-            const handleLoginSubmit = async () => {
+        // --- COMPONENTES (ORDEM CORRIGIDA) ---
                 setError('');
                 if (!email.trim() || !password.trim()) return setError("Preencha e-mail e senha.");
                 setIsLoading(true);
@@ -431,7 +431,7 @@
             return (<div className="bg-gradient-to-r from-orange-50 via-yellow-50 to-orange-50 border-b border-orange-200 relative shadow-sm"><div className="max-w-5xl mx-auto px-4 py-2 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left min-h-[40px]"><div className="flex-1 flex flex-col sm:flex-row gap-x-6 gap-y-2 justify-center sm:justify-start items-center w-full">{notices.logistics && <div className="flex items-center gap-2 text-orange-800 animate-blink font-semibold text-sm"><span className="bg-orange-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Logística</span><span>{notices.logistics}</span></div>}{notices.admin && <div className="flex items-center gap-2 text-indigo-900 animate-blink font-semibold text-sm"><span className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold uppercase">Adm</span><span>{notices.admin}</span></div>}</div>{userRole !== 'lab_tech' && <button onClick={() => setIsEditing(true)} className="text-slate-400 hover:text-blue-600 p-1.5 bg-white/50 hover:bg-white rounded-full transition"><Icons.Edit /></button>}</div></div>);
         };
 
-        const InventoryItemCard = ({ item, isLocked, onUpdateQty, onDelete, onEdit }) => {
+        const InventoryItemCard = ({ item, isLocked, onUpdateQty, onDelete, onEdit, isFirstToExpire, hasMultipleLots }) => {
             const [isEditing, setIsEditing] = React.useState(false);
             const [editData, setEditData] = React.useState({ ...item });
             const handleSave = () => { onEdit(item.id, { ...editData, name: editData.name.trim() }); setIsEditing(false); };
@@ -439,14 +439,80 @@
             const getStatusColor = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'bg-red-100 text-red-700 border-red-200'; if (cur >= minimum && cur <= minimum * 1.2) return 'bg-yellow-100 text-yellow-800 border-yellow-200'; return 'bg-green-100 text-green-700 border-green-200'; };
             const getStatusLabel = (current, min) => { const cur = parseInt(current); const minimum = parseInt(min); if (cur <= 0 || cur < minimum) return 'Crítico'; if (cur >= minimum && cur <= minimum * 1.2) return 'Atenção'; return 'OK'; };
 
-            if (isEditing) return (<div className="bg-white p-4 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden"><div className="flex flex-col gap-2"><input className="p-1.5 border rounded text-sm font-bold" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Nome" /><select className="p-1.5 border rounded text-xs" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})}><optgroup label="Almoxarifado"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup><optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup></select><input className="p-1.5 border rounded text-xs" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} placeholder="Local" /><div className="grid grid-cols-4 gap-1"><input type="number" className="p-1.5 border rounded text-xs" value={editData.currentQty ?? ''} onChange={e => setEditData({...editData, currentQty: e.target.value})} placeholder="Qtd" /><input type="number" className="p-1.5 border rounded text-xs" value={editData.minQty ?? ''} onChange={e => setEditData({...editData, minQty: e.target.value})} placeholder="Min" /><input type="number" className="p-1.5 border rounded text-xs" value={editData.maxQty ?? ''} onChange={e => setEditData({...editData, maxQty: e.target.value})} placeholder="Max" /><select className="p-1.5 border rounded text-xs" value={editData.unit} onChange={e => setEditData({...editData, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select></div><div className="flex justify-end gap-2 mt-2"><button onClick={handleCancel} className="text-xs text-slate-500 hover:underline">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">Salvar</button></div></div></div>);
+            const isLogisticsCategory = ['reagente', 'materiais', 'consumivel_log'].includes(editData.category);
+
+            if (isEditing) return (
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden">
+                    <div className="flex flex-col gap-2">
+                        <input className="p-1.5 border rounded text-sm font-bold" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Nome" />
+                        <select className="p-1.5 border rounded text-xs" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})}>
+                            <optgroup label="Almoxarifado"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>
+                            <optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup>
+                        </select>
+                        <input className="p-1.5 border rounded text-xs" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} placeholder="Local" />
+                        
+                        <div className="grid grid-cols-4 gap-1">
+                            <input type="number" className="p-1.5 border rounded text-xs" value={editData.currentQty ?? ''} onChange={e => setEditData({...editData, currentQty: e.target.value})} placeholder="Qtd" />
+                            <input type="number" className="p-1.5 border rounded text-xs" value={editData.minQty ?? ''} onChange={e => setEditData({...editData, minQty: e.target.value})} placeholder="Min" />
+                            <input type="number" className="p-1.5 border rounded text-xs" value={editData.maxQty ?? ''} onChange={e => setEditData({...editData, maxQty: e.target.value})} placeholder="Max" />
+                            <select className="p-1.5 border rounded text-xs" value={editData.unit} onChange={e => setEditData({...editData, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select>
+                        </div>
+
+                        {isLogisticsCategory && (
+                            <div className="grid grid-cols-3 gap-1 mt-1 border-t border-blue-100 pt-2">
+                                <input className="p-1.5 border rounded text-xs" value={editData.marca || ''} onChange={e => setEditData({...editData, marca: e.target.value})} placeholder="Marca" />
+                                <input className="p-1.5 border rounded text-xs" value={editData.lote || ''} onChange={e => setEditData({...editData, lote: e.target.value})} placeholder="Lote" />
+                                <input type="date" className="p-1.5 border rounded text-xs text-slate-500" value={editData.validade || ''} onChange={e => setEditData({...editData, validade: e.target.value})} title="Validade" />
+                            </div>
+                        )}
+
+                        <div className="flex justify-end gap-2 mt-2"><button onClick={handleCancel} className="text-xs text-slate-500 hover:underline">Cancelar</button><button onClick={handleSave} className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold">Salvar</button></div>
+                    </div>
+                </div>
+            );
             
+            let expiryBadge = null;
+            if (item.validade) {
+                // Cálculo para não dar diferença de fuso horário
+                const vDate = new Date(`${item.validade}T12:00:00`); 
+                const today = new Date();
+                const diffDays = Math.ceil((vDate - today) / (1000 * 60 * 60 * 24));
+                
+                if (diffDays < 0) expiryBadge = <span className="bg-red-600 text-white px-2 py-0.5 rounded text-[10px] font-bold animate-pulse">VENCIDO</span>;
+                else if (diffDays <= 30) expiryBadge = <span className="bg-orange-500 text-white px-2 py-0.5 rounded text-[10px] font-bold shadow-sm">VENCE EM {diffDays} DIAS</span>;
+                else expiryBadge = <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded border text-[10px] shadow-sm">Val: {vDate.toLocaleDateString('pt-BR')}</span>;
+            }
+
             return (
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
-                    <div className={`absolute top-0 right-0 px-3 py-1 text-[10px] font-bold uppercase rounded-bl-lg border-l border-b ${getStatusColor(item.currentQty, item.minQty)}`}>{getStatusLabel(item.currentQty, item.minQty)}</div>
-                    <div className="flex justify-between items-start mt-2"><div><h4 className="font-bold text-slate-800 text-lg leading-tight">{item.name}</h4><div className="text-xs text-slate-500 mb-2 mt-1">{CAT_LABELS[item.category] || item.category} • Local: {item.location || '-'}</div></div></div>
-                    <div className="flex items-center justify-between mt-4 bg-slate-50 p-3 rounded-lg"><div className="text-center"><div className="text-xs text-slate-400 uppercase">Mín</div><div className="font-bold text-slate-600">{item.minQty}</div></div><div className="text-center"><div className="text-xs text-slate-400 uppercase">Atual</div><div className="text-2xl font-bold text-blue-600">{item.currentQty} <span className="text-sm text-slate-400 font-normal">{item.unit}</span></div></div><div className="flex flex-col gap-1"><button onClick={() => onUpdateQty(item.id, item.name, item.currentQty, 1)} className="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200"><Icons.Plus/></button><button onClick={() => onUpdateQty(item.id, item.name, item.currentQty, -1)} className="p-1 bg-red-100 text-red-700 rounded hover:bg-red-200"><Icons.X/></button></div></div>
-                    {!isLocked && (<div className="flex justify-between mt-3 pt-3 border-t border-slate-100 animate-in fade-in"><button onClick={() => onDelete(item.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded transition"><Icons.Trash2 /></button><button onClick={() => setIsEditing(true)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded transition"><Icons.Edit /></button></div>)}
+                <div className={`bg-white rounded-xl shadow-sm border relative overflow-hidden transition-all ${isFirstToExpire ? 'ring-2 ring-blue-500 border-transparent shadow-md' : 'border-slate-200'}`}>
+                    {hasMultipleLots && isFirstToExpire && (
+                        <div className="bg-blue-100 text-blue-800 text-[10px] py-1 font-bold flex items-center justify-center gap-1 border-b border-blue-200">
+                            ⚠️ USAR PRIMEIRO (Vencimento mais próximo)
+                        </div>
+                    )}
+                    
+                    <div className={`absolute ${hasMultipleLots && isFirstToExpire ? 'top-6' : 'top-0'} right-0 px-3 py-1 text-[10px] font-bold uppercase rounded-bl-lg border-l border-b ${getStatusColor(item.currentQty, item.minQty)}`}>{getStatusLabel(item.currentQty, item.minQty)}</div>
+                    
+                    <div className="p-4">
+                        <div className="flex justify-between items-start mt-2">
+                            <div>
+                                <h4 className="font-bold text-slate-800 text-lg leading-tight pr-12">{item.name}</h4>
+                                <div className="text-xs text-slate-500 mb-2 mt-1">
+                                    {CAT_LABELS[item.category] || item.category} • Local: {item.location || '-'}
+                                    {(item.marca || item.lote) && (
+                                        <div className="mt-1.5 font-medium text-slate-600 bg-slate-50 p-1.5 rounded border border-slate-100 inline-block">
+                                            {item.marca && <span>Marca: <strong className="text-slate-700">{item.marca}</strong> </span>}
+                                            {item.marca && item.lote && <span className="mx-1 opacity-50">|</span>}
+                                            {item.lote && <span>Lote: <strong className="text-slate-700">{item.lote}</strong></span>}
+                                        </div>
+                                    )}
+                                    {expiryBadge && <div className="mt-2 block">{expiryBadge}</div>}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-4 bg-slate-50 p-3 rounded-lg"><div className="text-center"><div className="text-xs text-slate-400 uppercase">Mín</div><div className="font-bold text-slate-600">{item.minQty}</div></div><div className="text-center"><div className="text-xs text-slate-400 uppercase">Atual</div><div className="text-2xl font-bold text-blue-600">{item.currentQty} <span className="text-sm text-slate-400 font-normal">{item.unit}</span></div></div><div className="flex flex-col gap-1"><button onClick={() => onUpdateQty(item.id, item.name, item.currentQty, 1)} className="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200"><Icons.Plus/></button><button onClick={() => onUpdateQty(item.id, item.name, item.currentQty, -1)} className="p-1 bg-red-100 text-red-700 rounded hover:bg-red-200"><Icons.X/></button></div></div>
+                        {!isLocked && (<div className="flex justify-between mt-3 pt-3 border-t border-slate-100 animate-in fade-in"><button onClick={() => onDelete(item.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded transition"><Icons.Trash2 /></button><button onClick={() => setIsEditing(true)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded transition"><Icons.Edit /></button></div>)}
+                    </div>
                 </div>
             );
         };
@@ -815,7 +881,7 @@
             const [searchTerm, setSearchTerm] = React.useState('');
             const [showForm, setShowForm] = React.useState(false);
             const [isInventoryLocked, setIsInventoryLocked] = React.useState(true);
-            const [newItem, setNewItem] = React.useState({ name: '', category: userRole === 'logistics' ? 'reagente' : 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '' });
+            const [newItem, setNewItem] = React.useState({ name: '', category: userRole === 'logistics' ? 'reagente' : 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '', lote: '', validade: '', marca: '' });
             const [filterTab, setFilterTab] = React.useState('Todos');
 
             React.useEffect(() => {
@@ -841,7 +907,7 @@
 
                 try { 
                     await addDoc(collection(db, 'estoque_lab_2026'), itemToSave); 
-                    setNewItem({ name: '', category: userRole === 'logistics' ? 'reagente' : 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '' }); 
+                    setNewItem({ name: '', category: userRole === 'logistics' ? 'reagente' : 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '', lote: '', validade: '', marca: '' }); 
                     setShowForm(false); 
                 } catch (e) { 
                     console.error(e); 
@@ -891,6 +957,23 @@
                 if (filterTab === 'Crítico' && status === 'Crítico') return true;
                 return false;
             });
+
+            // Inteligência para destacar o Lote que vence primeiro
+            const itemNamesCount = {};
+            const earliestExpiryMap = {};
+
+            items.forEach(item => {
+                const name = item.name.toLowerCase().trim();
+                itemNamesCount[name] = (itemNamesCount[name] || 0) + 1;
+                
+                if (item.validade && item.currentQty > 0) {
+                    if (!earliestExpiryMap[name] || new Date(`${item.validade}T12:00:00`) < new Date(`${earliestExpiryMap[name]}T12:00:00`)) {
+                        earliestExpiryMap[name] = item.validade;
+                    }
+                }
+            });
+
+            const isLogisticsNewItem = ['reagente', 'materiais', 'consumivel_log'].includes(newItem.category);
 
             return (
                 <div className="animate-in fade-in">
@@ -942,27 +1025,54 @@
                                 </select>
                                 <input className="p-2 border rounded" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
                                 <select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select>
+                                
                                 <div className="md:col-span-4 grid grid-cols-3 gap-4">
                                     <input type="number" className="p-2 border rounded" placeholder="Qtd Atual" value={newItem.currentQty} onChange={e => setNewItem({...newItem, currentQty: e.target.value})} />
                                     <input type="number" className="p-2 border rounded" placeholder="Estoque Mínimo" value={newItem.minQty} onChange={e => setNewItem({...newItem, minQty: e.target.value})} />
                                     <input type="number" className="p-2 border rounded" placeholder="Estoque Máximo" value={newItem.maxQty} onChange={e => setNewItem({...newItem, maxQty: e.target.value})} />
                                 </div>
-                                <button type="submit" className="md:col-span-4 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700">Salvar Item</button>
+
+                                {isLogisticsNewItem && (
+                                    <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-100 pt-4 mt-2">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Marca</label>
+                                            <input className="w-full p-2 border rounded" placeholder="Ex: Merck, Sigma..." value={newItem.marca || ''} onChange={e => setNewItem({...newItem, marca: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Lote</label>
+                                            <input className="w-full p-2 border rounded" placeholder="Ex: L-12345" value={newItem.lote || ''} onChange={e => setNewItem({...newItem, lote: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Validade</label>
+                                            <input type="date" className="w-full p-2 border rounded text-slate-500" value={newItem.validade || ''} onChange={e => setNewItem({...newItem, validade: e.target.value})} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <button type="submit" className="md:col-span-4 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700 mt-2">Salvar Item</button>
                             </form>
                         </div>
                     )}
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {displayedItems.map(item => (
-                            <InventoryItemCard 
-                                key={item.id} 
-                                item={item} 
-                                isLocked={isInventoryLocked}
-                                onUpdateQty={handleUpdateQty}
-                                onDelete={handleDeleteItem}
-                                onEdit={handleEditItem}
-                            />
-                        ))}
+                        {displayedItems.map(item => {
+                            const nameKey = item.name.toLowerCase().trim();
+                            const hasMultipleLots = itemNamesCount[nameKey] > 1;
+                            const isFirstToExpire = item.validade && item.validade === earliestExpiryMap[nameKey] && hasMultipleLots;
+
+                            return (
+                                <InventoryItemCard 
+                                    key={item.id} 
+                                    item={item} 
+                                    isLocked={isInventoryLocked}
+                                    onUpdateQty={handleUpdateQty}
+                                    onDelete={handleDeleteItem}
+                                    onEdit={handleEditItem}
+                                    hasMultipleLots={hasMultipleLots}
+                                    isFirstToExpire={isFirstToExpire}
+                                />
+                            );
+                        })}
                     </div>
                 </div>
             );
