@@ -752,10 +752,10 @@
             const displayedMovements = movements.filter(mov => {
                 const cat = mov.itemCategory || itemsCatMap[mov.itemName];
                 
-                // Filtro por Perfil
+                // Filtro estrito por Perfil
                 let showByRole = true;
-                if (userRole === 'admin' && cat) showByRole = CAT_GROUPS.admin.includes(cat);
-                if (userRole === 'logistics' && cat) showByRole = CAT_GROUPS.logistics.includes(cat);
+                if (userRole === 'admin') showByRole = cat ? CAT_GROUPS.admin.includes(cat) : false;
+                if (userRole === 'logistics') showByRole = cat ? CAT_GROUPS.logistics.includes(cat) : false;
 
                 // Filtro por Tipo (Entrada/Saída)
                 let showByType = true;
@@ -994,7 +994,7 @@
                                     <div className="text-xs text-slate-500 mb-2">Sugerido por: {sug.requesterName} ({sug.requesterSector}) em {formatDate(sug.createdAt)}</div>
                                     <div className="bg-slate-50 p-2 rounded text-sm text-slate-700 italic mb-4">"{sug.motivo}"</div>
                                     
-                                    {(userRole === 'admin' || userRole === 'master') && (
+                                    {(userRole === 'admin' || userRole === 'master' || userRole === 'logistics') && (
                                         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
                                             {sug.status === 'pending' && <button onClick={() => handleUpdateStatus(sug.id, 'reviewed')} className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded font-bold hover:bg-blue-100 transition">Marcar como Vista</button>}
                                             <button onClick={() => handleDelete(sug.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded transition"><Icons.Trash2 /></button>
@@ -1008,9 +1008,16 @@
             );
         };
 
-        const DashboardView = ({ requests }) => {
+        const DashboardView = ({ requests, userRole }) => {
             const stats = React.useMemo(() => {
-                let totalRequests = requests.length;
+                // Filtra os pedidos com base no perfil logado
+                const relevantRequests = requests.filter(r => {
+                    if (userRole === 'admin') return CAT_GROUPS.admin.includes(r.category);
+                    if (userRole === 'logistics') return CAT_GROUPS.logistics.includes(r.category);
+                    return true; // Gestor (master) vê tudo
+                });
+
+                let totalRequests = relevantRequests.length;
                 let approved = 0;
                 let outOfStock = 0;
                 let pending = 0;
@@ -1022,7 +1029,7 @@
                 const sectorCounts = {};
                 const monthCounts = {};
 
-                requests.forEach(r => {
+                relevantRequests.forEach(r => {
                     const qty = parseInt(r.quantity) || 1;
                     const itemName = r.item ? r.item.trim() : 'Desconhecido';
 
@@ -1089,8 +1096,11 @@
             return (
                 <div className="animate-in fade-in space-y-6">
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-4 rounded-xl mb-6">
-                        <h3 className="text-blue-800 font-black flex items-center gap-2"><Icons.BarChart /> Dashboard Analítico</h3>
-                        <p className="text-xs text-blue-600 mt-1">Visão gerencial consolidada de todos os registros do LabFlow.</p>
+                        <h3 className="text-blue-800 font-black flex items-center gap-2">
+                            <Icons.BarChart /> 
+                            {userRole === 'logistics' ? 'Dashboard Logística' : userRole === 'admin' ? 'Dashboard Administrativo' : 'Dashboard Analítico Geral'}
+                        </h3>
+                        <p className="text-xs text-blue-600 mt-1">Visão gerencial consolidada dos registros do LabFlow pertinentes à sua área.</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -2092,7 +2102,7 @@
                         {view === 'inventory' && <InventoryView userRole={appUser.role} currentUser={appUser} />}
                         {view === 'movements' && <MovementsView userRole={appUser.role} />}
                         {view === 'purchases' && <PurchaseRequestView userRole={appUser.role} />}
-                        {view === 'dashboard' && <DashboardView requests={requests} />}
+                        {view === 'dashboard' && <DashboardView requests={requests} userRole={appUser.role} />}
                     </main>
                     
                     {/* MODAL DE ITEM INDISPONÍVEL */}
