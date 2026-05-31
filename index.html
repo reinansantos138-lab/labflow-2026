@@ -135,6 +135,44 @@
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, setDoc, getDoc, where, getDocs, writeBatch, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+        /*
+         * ==========================================
+         * INSTRUÇÕES FIREBASE EXTENSIONS E FUNCTIONS
+         * ==========================================
+         *
+         * MÓDULO 12: Trigger Email Extension
+         * 1. No painel Firebase, vá em Build > Extensions.
+         * 2. Instale a extensão "Trigger Email from Firestore".
+         * 3. Configurações da extensão:
+         * - Email document collection: "mail"
+         * - SMTP connection URI: smtps://seu-email@dominio.com:sua-senha@smtp.dominio.com:465
+         * - Email send field: vazio ou padrão
+         *
+         * MÓDULO 16: Relatório Semanal Agendado (Cloud Functions v2)
+         * Crie o arquivo functions/index.js no seu projeto:
+         * ----------------------------------------
+         * const { onSchedule } = require("firebase-functions/v2/scheduler");
+         * const admin = require("firebase-admin");
+         * admin.initializeApp();
+         * exports.weeklyReport = onSchedule("every monday 07:00", { timeZone: "America/Bahia" }, async (event) => {
+         * // 1. Consultar pedidos (createdAt >= 7 dias)
+         * // 2. Consultar estoque (currentQty <= minQty)
+         * // 3. Montar HTML
+         * // 4. admin.firestore().collection('mail').add({ to: ["logistica@...", "admin@..."], message: { subject: "Resumo Semanal", html: "..." } })
+         * });
+         * ----------------------------------------
+         * Deploy: firebase deploy --only functions
+         *
+         * MÓDULO 17: Regras do Firestore (Audit Log Imutável)
+         * No painel Firebase, vá em Firestore Database > Rules e adicione:
+         * match /audit_log_2026/{docId} {
+         * allow read: if request.auth != null;
+         * allow create: if request.auth != null;
+         * allow update, delete: if false; // IMUTÁVEL
+         * }
+         * ==========================================
+         */
+
         // --- CONFIGURAÇÃO FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyAhJylWo5-RAyxsCFV3w9ounadvauJ_v_8",
@@ -185,6 +223,13 @@
         };
 
         // --- FUNÇÕES UTILITÁRIAS GLOBAIS ---
+        
+        // Conversor de Números para Sobrescritos
+        const toSuperscript = (num) => {
+            const map = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹', '-':'⁻'};
+            return num.toString().split('').map(c => map[c]||c).join('');
+        };
+
         const sendEmailNotification = async (to, subject, htmlBody) => {
             if (!to) return;
             const toArray = Array.isArray(to) ? to : [to];
@@ -271,20 +316,29 @@
             return d.getFullYear() === 2026 && d.getMonth() <= 6;
         };
 
-        const processStockTransaction = async (itemName, quantity, type, origin, user, requestId = null, notes = '') => {
-            const q = query(collection(db, 'estoque_lab_2026'), where('name', '==', itemName));
-            const querySnapshot = await getDocs(q);
-
+        // --- SISTEMA FIFO E MANIPULAÇÃO DE ESTOQUE AVANÇADA ---
+        const processStockTransaction = async (itemName, quantity, type, origin, user, requestId = null, notes = '', specificItemId = null) => {
             let matchingItems = [];
 
-            if (!querySnapshot.empty) {
-                matchingItems = querySnapshot.docs.map(d => ({ doc: d, id: d.id, ...d.data() }));
+            if (specificItemId) {
+                // Ajuste direto no card de inventário (ignora as regras FIFO e vai direto no lote)
+                const docSnap = await getDoc(doc(db, 'estoque_lab_2026', specificItemId));
+                if (!docSnap.exists()) throw new Error('Lote específico não encontrado no banco.');
+                matchingItems = [{ doc: docSnap, id: docSnap.id, ...docSnap.data() }];
             } else {
-                // Fallback de Busca para evitar erro de espaço invisível
-                const allStock = await getDocs(collection(db, 'estoque_lab_2026'));
-                matchingItems = allStock.docs
-                    .filter(d => d.data().name && d.data().name.trim().toLowerCase() === itemName.trim().toLowerCase())
-                    .map(d => ({ doc: d, id: d.id, ...d.data() }));
+                // Solicitações feitas pela equipe Lab (pesquisa pelo nome e aplica FIFO em todos os lotes)
+                const q = query(collection(db, 'estoque_lab_2026'), where('name', '==', itemName));
+                const querySnapshot = await getDocs(q);
+
+                if (!querySnapshot.empty) {
+                    matchingItems = querySnapshot.docs.map(d => ({ doc: d, id: d.id, ...d.data() }));
+                } else {
+                    // Fallback para nomes com espaços esquisitos
+                    const allStock = await getDocs(collection(db, 'estoque_lab_2026'));
+                    matchingItems = allStock.docs
+                        .filter(d => d.data().name && d.data().name.trim().toLowerCase() === itemName.trim().toLowerCase())
+                        .map(d => ({ doc: d, id: d.id, ...d.data() }));
+                }
             }
 
             if (matchingItems.length === 0) {
@@ -293,55 +347,88 @@
                 return;
             }
 
-            // Módulo de Validade (FIFO) - Prioriza o vencimento mais próximo na saída
             if (type === 'out') {
+                // Ordenação FIFO - O mais antigo que vai vencer (menor data) sai primeiro. Sem validade fica pro final.
                 matchingItems.sort((a, b) => {
                     if (!a.validade) return 1; 
                     if (!b.validade) return -1;
                     return new Date(a.validade) - new Date(b.validade);
                 });
+
+                let remainingChange = parseInt(quantity);
+                const totalAvailable = matchingItems.reduce((sum, item) => sum + parseInt(item.currentQty || 0), 0);
+                
+                // Impede que o técnico peça mais do que a soma de todos os lotes (só se não for ajuste manual)
+                if (!specificItemId && totalAvailable < remainingChange) {
+                    throw new Error(`Estoque insuficiente de "${itemName}". Total disponível: ${totalAvailable}, Necessário: ${remainingChange}`);
+                }
+
+                for (let item of matchingItems) {
+                    if (remainingChange <= 0 && !specificItemId) break;
+                    
+                    let currentQty = parseInt(item.currentQty || 0);
+                    // Quanto tirar deste lote? Se for ajuste manual, tira tudo, senão tira o que der e passa pro próximo
+                    let deduct = specificItemId ? remainingChange : Math.min(currentQty, remainingChange);
+                    
+                    if (deduct <= 0 && !specificItemId) continue; 
+
+                    let newQty = currentQty - deduct;
+                    remainingChange -= deduct;
+
+                    await updateDoc(doc(db, 'estoque_lab_2026', item.id), {
+                        currentQty: newQty,
+                        updatedAt: new Date().toISOString()
+                    });
+
+                    // Notificacao Mínimo (Módulo 12)
+                    const minQty = parseInt(item.minQty || 0);
+                    if (newQty < minQty && minQty > 0) {
+                        const to = CAT_GROUPS.logistics.includes(item.category) ? EMAIL_LOGISTICS : EMAIL_ADMIN;
+                        await sendEmailNotification(to, `⚠️ Estoque crítico: ${itemName}`, `<p>O lote de <b>${itemName}</b> atingiu o nível crítico de estoque.</p><p>Quantidade atual: ${newQty}</p><p>Mínimo exigido: ${minQty}</p>`);
+                    }
+
+                    await addDoc(collection(db, 'movimentacoes_estoque_2026'), {
+                        itemId: item.id,
+                        itemName: itemName,
+                        lote: item.lote || '', 
+                        type: 'out',
+                        quantity: deduct,
+                        origin: origin,
+                        requestId: requestId,
+                        user: user.name,
+                        userRole: user.role,
+                        timestamp: new Date().toISOString(),
+                        balanceAfter: newQty,
+                        notes: notes + (matchingItems.length > 1 && !specificItemId ? ` (Abateu do lote: ${item.lote || 'S/N'})` : '')
+                    });
+                }
+            } else {
+                // Entrada (in)
+                const item = matchingItems[0];
+                const currentQty = parseInt(item.currentQty || 0);
+                const change = parseInt(quantity);
+                const newQty = currentQty + change;
+
+                await updateDoc(doc(db, 'estoque_lab_2026', item.id), {
+                    currentQty: newQty,
+                    updatedAt: new Date().toISOString()
+                });
+
+                await addDoc(collection(db, 'movimentacoes_estoque_2026'), {
+                    itemId: item.id,
+                    itemName: itemName,
+                    lote: item.lote || '', 
+                    type: 'in',
+                    quantity: change,
+                    origin: origin,
+                    requestId: requestId,
+                    user: user.name,
+                    userRole: user.role,
+                    timestamp: new Date().toISOString(),
+                    balanceAfter: newQty,
+                    notes: notes
+                });
             }
-
-            const change = parseInt(quantity);
-            // Busca o lote com quantidade suficiente, ou pega o primeiro
-            let stockItem = matchingItems.find(item => parseInt(item.currentQty || 0) >= change);
-            
-            if (!stockItem) stockItem = matchingItems[0];
-
-            const currentQty = parseInt(stockItem.currentQty || 0);
-
-            if (type === 'out' && currentQty < change) {
-                throw new Error(`Estoque insuficiente de "${itemName}" (Lote: ${stockItem.lote || 'N/A'}). Atual: ${currentQty}, Necessário: ${change}`);
-            }
-
-            const newQty = type === 'in' ? currentQty + change : currentQty - change;
-
-            await updateDoc(doc(db, 'estoque_lab_2026', stockItem.id), {
-                currentQty: newQty,
-                updatedAt: new Date().toISOString()
-            });
-
-            // Módulo 12 - Disparo de email crítico no estoque
-            const minQty = parseInt(stockItem.minQty || 0);
-            if (newQty < minQty && minQty > 0 && type === 'out') {
-                const to = CAT_GROUPS.logistics.includes(stockItem.category) ? EMAIL_LOGISTICS : EMAIL_ADMIN;
-                await sendEmailNotification(to, `⚠️ Estoque crítico: ${itemName}`, `<p>O item <b>${itemName}</b> atingiu o nível crítico de estoque.</p><p>Quantidade atual: ${newQty}</p><p>Mínimo exigido: ${minQty}</p>`);
-            }
-
-            await addDoc(collection(db, 'movimentacoes_estoque_2026'), {
-                itemId: stockItem.id,
-                itemName: itemName,
-                lote: stockItem.lote || '', 
-                type: type,
-                quantity: change,
-                origin: origin,
-                requestId: requestId,
-                user: user.name,
-                userRole: user.role,
-                timestamp: new Date().toISOString(),
-                balanceAfter: newQty,
-                notes: notes
-            });
         };
 
         // --- COMPONENTES DA APLICAÇÃO ---
@@ -1013,7 +1100,6 @@
             );
         };
 
-        // --- MÓDULO 17: VISUALIZAÇÃO DE AUDITORIA ---
         const AuditView = () => {
             const [logs, setLogs] = React.useState([]);
             const [filter, setFilter] = React.useState('Todas');
@@ -1037,7 +1123,7 @@
                 if (action.includes('excluido')) return 'bg-red-100 text-red-700 border-red-200';
                 if (action.includes('editado') || action.includes('manual')) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
                 if (action.includes('received')) return 'bg-green-100 text-green-700 border-green-200';
-                return 'bg-blue-100 text-blue-700 border-blue-200'; // status_alterado
+                return 'bg-blue-100 text-blue-700 border-blue-200';
             };
 
             return (
@@ -1085,216 +1171,12 @@
             );
         };
 
-        const DashboardView = ({ requests, userRole }) => {
-            const stats = React.useMemo(() => {
-                const relevantRequests = requests.filter(r => {
-                    if (userRole === 'admin') return CAT_GROUPS.admin.includes(r.category);
-                    if (userRole === 'logistics') return CAT_GROUPS.logistics.includes(r.category);
-                    return true; 
-                });
-
-                let totalRequests = relevantRequests.length;
-                let approved = 0;
-                let outOfStock = 0;
-                let pending = 0;
-                let totalFulfillmentTimeMs = 0;
-                let fulfilledCount = 0;
-
-                const itemCounts = {};
-                const missingItemCounts = {};
-                const sectorCounts = {};
-                const monthCounts = {};
-
-                relevantRequests.forEach(r => {
-                    const qty = parseInt(r.quantity) || 1;
-                    const itemName = r.item ? r.item.trim() : 'Desconhecido';
-
-                    if (r.status === 'approved') {
-                        approved++;
-                        if (r.statusUpdatedAt && r.createdAt) {
-                            const diff = new Date(r.statusUpdatedAt) - new Date(r.createdAt);
-                            if (diff > 0) {
-                                totalFulfillmentTimeMs += diff;
-                                fulfilledCount++;
-                            }
-                        }
-                    } else if (r.status === 'out_of_stock') {
-                        outOfStock++;
-                        missingItemCounts[itemName] = (missingItemCounts[itemName] || 0) + qty;
-                    } else {
-                        pending++;
-                    }
-
-                    itemCounts[itemName] = (itemCounts[itemName] || 0) + qty;
-
-                    const sector = r.requesterSector || 'Outros';
-                    sectorCounts[sector] = (sectorCounts[sector] || 0) + 1;
-
-                    if (r.createdAt) {
-                        const d = new Date(r.createdAt);
-                        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                        const monthLabel = d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
-                        if (!monthCounts[monthKey]) monthCounts[monthKey] = { label: monthLabel, count: 0 };
-                        monthCounts[monthKey].count++;
-                    }
-                });
-
-                let avgTimeLabel = "-";
-                if (fulfilledCount > 0) {
-                    const avgMs = totalFulfillmentTimeMs / fulfilledCount;
-                    const hours = avgMs / (1000 * 60 * 60);
-                    if (hours < 1) avgTimeLabel = `${Math.round(hours * 60)} min`;
-                    else if (hours < 24) avgTimeLabel = `${Math.round(hours)}h`;
-                    else avgTimeLabel = `${(hours / 24).toFixed(1)} dias`;
-                }
-
-                const topItems = Object.entries(itemCounts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count).slice(0, 5);
-                const topMissingItems = Object.entries(missingItemCounts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count).slice(0, 5);
-                const topSectors = Object.entries(sectorCounts).map(([name, count]) => ({name, count})).sort((a,b) => b.count - a.count);
-                const monthlyData = Object.keys(monthCounts).sort().map(k => monthCounts[k]);
-
-                const maxMonthCount = Math.max(...monthlyData.map(m => m.count), 1);
-                const maxSectorCount = Math.max(...topSectors.map(s => s.count), 1);
-                const maxItemCount = Math.max(...topItems.map(i => i.count), 1);
-                const maxMissingItemCount = Math.max(...topMissingItems.map(i => i.count), 1);
-
-                return {
-                    totalRequests, approved, outOfStock, pending, avgTimeLabel,
-                    topItems, topMissingItems, topSectors, monthlyData,
-                    maxMonthCount, maxSectorCount, maxItemCount, maxMissingItemCount
-                };
-            }, [requests]);
-
-            const totalFinished = stats.approved + stats.outOfStock;
-            const approvedRate = totalFinished > 0 ? Math.round((stats.approved / totalFinished) * 100) : 0;
-            const outOfStockRate = totalFinished > 0 ? Math.round((stats.outOfStock / totalFinished) * 100) : 0;
-
-            return (
-                <div className="animate-in fade-in space-y-6">
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-4 rounded-xl mb-6">
-                        <h3 className="text-blue-800 font-black flex items-center gap-2">
-                            <Icons.BarChart /> 
-                            {userRole === 'logistics' ? 'Dashboard Logística' : userRole === 'admin' ? 'Dashboard Administrativo' : 'Dashboard Analítico Geral'}
-                        </h3>
-                        <p className="text-xs text-blue-600 mt-1">Visão gerencial consolidada dos registros do LabFlow pertinentes à sua área.</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                            <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">Total Pedidos</div>
-                            <div className="text-4xl font-black text-slate-800">{stats.totalRequests}</div>
-                        </div>
-                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                            <div className="text-green-500 text-xs font-bold uppercase tracking-wider mb-2">Itens Entregues</div>
-                            <div className="text-4xl font-black text-green-600">{stats.approved}</div>
-                        </div>
-                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                            <div className="text-red-400 text-xs font-bold uppercase tracking-wider mb-2">Itens Em Falta</div>
-                            <div className="text-4xl font-black text-red-600">{stats.outOfStock}</div>
-                        </div>
-                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
-                            <div className="text-blue-400 text-xs font-bold uppercase tracking-wider mb-2">Tempo Médio Atend.</div>
-                            <div className="text-4xl font-black text-blue-600">{stats.avgTimeLabel}</div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-center">
-                            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">Taxa de Conversão (Finalizados)</h3>
-                            <div className="flex h-8 rounded-full overflow-hidden mb-4 bg-slate-100 shadow-inner">
-                                <div style={{width: `${approvedRate}%`}} className="bg-green-500 h-full flex items-center justify-center text-xs text-white font-bold transition-all">{approvedRate > 5 ? `${approvedRate}%` : ''}</div>
-                                <div style={{width: `${outOfStockRate}%`}} className="bg-red-500 h-full flex items-center justify-center text-xs text-white font-bold transition-all">{outOfStockRate > 5 ? `${outOfStockRate}%` : ''}</div>
-                            </div>
-                            <div className="flex justify-around text-sm font-semibold mt-2">
-                                <div className="text-green-700 flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-green-500 shadow-sm"></div> {stats.approved} Entregues</div>
-                                <div className="text-red-700 flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-red-500 shadow-sm"></div> {stats.outOfStock} Em Falta</div>
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icons.Activity /> Pedidos por Mês</h3>
-                            <div className="flex items-end h-32 gap-3 pb-2 border-b border-slate-100">
-                                {stats.monthlyData.length === 0 && <div className="text-slate-400 text-sm m-auto">Aguardando dados históricos...</div>}
-                                {stats.monthlyData.map((m, i) => (
-                                    <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 group h-full">
-                                        <div className="text-xs font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity mb-1">{m.count}</div>
-                                        <div style={{height: `${(m.count / stats.maxMonthCount) * 100}%`}} className="w-full bg-blue-100 group-hover:bg-blue-500 rounded-t-md transition-all min-h-[4px]"></div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="flex items-end gap-3 mt-2">
-                                {stats.monthlyData.map((m, i) => (
-                                    <div key={i} className="flex-1 text-[10px] text-slate-500 font-semibold uppercase truncate text-center">{m.label.split(' de ')[0]}</div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.Building2 /> Setores que Mais Consomem</h3>
-                            <div className="space-y-5">
-                                {stats.topSectors.length === 0 && <div className="text-slate-400 text-sm">Sem dados.</div>}
-                                {stats.topSectors.map((sector, i) => (
-                                    <div key={i}>
-                                        <div className="flex justify-between text-sm mb-1.5">
-                                            <span className="font-bold text-slate-700 flex items-center gap-2"><span className="text-slate-400 text-xs w-4">{i+1}º</span> {sector.name}</span>
-                                            <span className="font-bold text-purple-600">{sector.count} ped.</span>
-                                        </div>
-                                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                                            <div style={{width: `${(sector.count / stats.maxSectorCount) * 100}%`}} className="bg-purple-500 h-full rounded-full transition-all"></div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.ShoppingCart /> Top 5 Itens (Volume Geral)</h3>
-                            <div className="space-y-5">
-                                {stats.topItems.length === 0 && <div className="text-slate-400 text-sm">Sem dados.</div>}
-                                {stats.topItems.map((item, i) => (
-                                    <div key={i}>
-                                        <div className="flex justify-between text-sm mb-1.5">
-                                            <span className="font-bold text-slate-700 truncate max-w-[80%] flex items-center gap-2"><span className="text-slate-400 text-xs w-4">{i+1}º</span> {item.name}</span>
-                                            <span className="font-bold text-blue-600">{item.count} unid.</span>
-                                        </div>
-                                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                                            <div style={{width: `${(item.count / stats.maxItemCount) * 100}%`}} className="bg-blue-500 h-full rounded-full transition-all"></div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <h3 className="font-bold text-slate-800 mb-5 flex items-center gap-2"><Icons.PackageX /> Top 5 Itens (Em Falta)</h3>
-                            <div className="space-y-5">
-                                {stats.topMissingItems.length === 0 && <div className="text-slate-400 text-sm">Nenhum item em falta registrado.</div>}
-                                {stats.topMissingItems.map((item, i) => (
-                                    <div key={i}>
-                                        <div className="flex justify-between text-sm mb-1.5">
-                                            <span className="font-bold text-slate-700 truncate max-w-[80%] flex items-center gap-2"><span className="text-slate-400 text-xs w-4">{i+1}º</span> {item.name}</span>
-                                            <span className="font-bold text-red-600">{item.count} unid.</span>
-                                        </div>
-                                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                                            <div style={{width: `${(item.count / stats.maxMissingItemCount) * 100}%`}} className="bg-red-500 h-full rounded-full transition-all"></div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
         const InventoryView = ({ userRole, currentUser }) => {
             const [items, setItems] = React.useState([]);
             const [searchTerm, setSearchTerm] = React.useState('');
             const [showForm, setShowForm] = React.useState(false);
             const [isInventoryLocked, setIsInventoryLocked] = React.useState(true);
-            const [newItem, setNewItem] = React.useState({ name: '', category: 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '' });
+            const [newItem, setNewItem] = React.useState({ name: '', category: 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '', marca: '', lote: '', validade: '' });
             const [filterTab, setFilterTab] = React.useState('Todos');
 
             React.useEffect(() => {
@@ -1320,7 +1202,7 @@
 
                 try { 
                     await addDoc(collection(db, 'estoque_lab_2026'), itemToSave); 
-                    setNewItem({ name: '', category: 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '' }); 
+                    setNewItem({ name: '', category: 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '', marca: '', lote: '', validade: '' }); 
                     setShowForm(false); 
                     logAudit('item_estoque_criado', { item: itemToSave.name }, currentUser);
                 } catch (e) { 
@@ -1332,7 +1214,7 @@
                 const newQty = parseInt(currentQty) + change;
                 if (newQty < 0) return;
                 try {
-                    await processStockTransaction(itemName, Math.abs(change), change > 0 ? 'in' : 'out', 'manual', currentUser, null, 'Ajuste Manual Rápido');
+                    await processStockTransaction(itemName, Math.abs(change), change > 0 ? 'in' : 'out', 'manual', currentUser, null, 'Ajuste Manual Rápido', id);
                 } catch (e) { alert(e.message); }
             };
             
@@ -1396,6 +1278,8 @@
                 });
             });
 
+            const isLogCategoryNewItem = ['reagente', 'materiais', 'consumivel_log'].includes(newItem.category);
+
             return (
                 <div className="animate-in fade-in">
                     <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
@@ -1443,20 +1327,43 @@
                     {showForm && (
                         <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
                             <h3 className="font-bold text-slate-700 mb-3">Cadastrar Novo Item</h3>
-                            <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <input className="p-2 border rounded" placeholder="Nome do Item" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
-                                <select className="p-2 border rounded" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
-                                    {(userRole === 'master' || userRole === 'logistics') && <optgroup label="Almoxarifado (Logística)"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>}
-                                    {(userRole === 'master' || userRole === 'admin') && <optgroup label="Adm (Cicilha)"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup>}
-                                </select>
-                                <input className="p-2 border rounded" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
-                                <select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select>
-                                <div className="md:col-span-4 grid grid-cols-3 gap-4">
-                                    <input type="number" className="p-2 border rounded" placeholder="Qtd Atual" value={newItem.currentQty} onChange={e => setNewItem({...newItem, currentQty: e.target.value})} />
-                                    <input type="number" className="p-2 border rounded" placeholder="Estoque Mínimo" value={newItem.minQty} onChange={e => setNewItem({...newItem, minQty: e.target.value})} />
-                                    <input type="number" className="p-2 border rounded" placeholder="Estoque Máximo" value={newItem.maxQty} onChange={e => setNewItem({...newItem, maxQty: e.target.value})} />
+                            <form onSubmit={handleAddItem}>
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <input className="p-2 border rounded" placeholder="Nome do Item" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
+                                    <select className="p-2 border rounded" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
+                                        {(userRole === 'master' || userRole === 'logistics') && <optgroup label="Almoxarifado (Logística)"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>}
+                                        {(userRole === 'master' || userRole === 'admin') && <optgroup label="Adm (Cicilha)"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup>}
+                                    </select>
+                                    <input className="p-2 border rounded" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
+                                    <select className="p-2 border rounded" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option></select>
+                                    
+                                    <div className="md:col-span-4 grid grid-cols-3 gap-4 border-b border-slate-100 pb-4">
+                                        <input type="number" className="p-2 border rounded" placeholder="Qtd Atual" value={newItem.currentQty} onChange={e => setNewItem({...newItem, currentQty: e.target.value})} required />
+                                        <input type="number" className="p-2 border rounded" placeholder="Estoque Mínimo" value={newItem.minQty} onChange={e => setNewItem({...newItem, minQty: e.target.value})} />
+                                        <input type="number" className="p-2 border rounded" placeholder="Estoque Máximo" value={newItem.maxQty} onChange={e => setNewItem({...newItem, maxQty: e.target.value})} />
+                                    </div>
                                 </div>
-                                <button type="submit" className="md:col-span-4 bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700">Salvar Item</button>
+                                
+                                {isLogCategoryNewItem && (
+                                    <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 mb-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Marca</label>
+                                            <input className="w-full p-2 border rounded" placeholder="Ex: Sigma Aldrich" value={newItem.marca || ''} onChange={e => setNewItem({...newItem, marca: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Lote</label>
+                                            <input className="w-full p-2 border rounded" placeholder="Ex: LT-2026-X" value={newItem.lote || ''} onChange={e => setNewItem({...newItem, lote: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data de Validade</label>
+                                            <input type="date" className="w-full p-2 border rounded text-slate-600" value={newItem.validade || ''} onChange={e => setNewItem({...newItem, validade: e.target.value})} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <button type="submit" className="w-full md:w-auto mt-2 bg-green-600 text-white px-8 py-2 rounded font-bold hover:bg-green-700 shadow-sm">
+                                    Salvar Item no Estoque
+                                </button>
                             </form>
                         </div>
                     )}
@@ -1545,16 +1452,9 @@
             const [isHistoryLocked, setIsHistoryLocked] = React.useState(true);
             const [techSubTab, setTechSubTab] = React.useState('admin'); 
             
-            // ESTADOS PARA SUGESTÃO
             const [showSuggestionModal, setShowSuggestionModal] = React.useState(false);
-
-            // DARK MODE STATE
             const [isDarkMode, setIsDarkMode] = React.useState(() => localStorage.getItem('labflow_theme') === 'dark');
-            
-            // EXPORTAÇÃO EXCEL
             const [isExportingExcel, setIsExportingExcel] = React.useState(false);
-
-            // ESTADOS DO RELATÓRIO DE CONSUMO MENSAL
             const [showConsumptionModal, setShowConsumptionModal] = React.useState(false);
             const [consumptionMonth, setConsumptionMonth] = React.useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
 
@@ -1562,7 +1462,6 @@
             const [storageLocationReq, setStorageLocationReq] = React.useState('');
             const [sectorReq, setSectorReq] = React.useState('');
 
-            // Módulo 15 - Debounce para alertas de email não repetirem
             const alertDebounce = React.useRef(new Map());
 
             React.useEffect(() => { 
@@ -1596,7 +1495,6 @@
             React.useEffect(() => { if (appUser && (newItem || quantity || notes)) { localStorage.setItem('labflow_draft_v1', JSON.stringify({ item: newItem, quantity, unit, category, notes, isUrgent })); setDraftSaved(true); setTimeout(() => setDraftSaved(false), 2000); } }, [newItem, quantity, unit, category, notes, isUrgent, appUser]);
             React.useEffect(() => { if (!user) return; onSnapshot(query(collection(db, 'solicitacoes_lab_2026'), orderBy('createdAt', 'desc')), s => setRequests(s.docs.filter(d => d.id !== 'NOTICES_CONFIG').map(d => ({ id: d.id, ...d.data() })))); }, [user]);
             
-            // Fetch Sugestões
             React.useEffect(() => {
                 if (!user) return;
                 const q = query(collection(db, 'sugestoes_lab_2026'), orderBy('createdAt', 'desc'));
@@ -1604,13 +1502,12 @@
                 return () => unsubscribe();
             }, [user]);
 
-            // Controle do Dark Mode Global
             React.useEffect(() => {
                 if (isDarkMode) { document.documentElement.classList.add('dark'); localStorage.setItem('labflow_theme', 'dark'); }
                 else { document.documentElement.classList.remove('dark'); localStorage.setItem('labflow_theme', 'light'); }
             }, [isDarkMode]);
 
-            // Módulo 15 e Módulo 18
+            // Motor Inteligente do Estoque
             React.useEffect(() => { 
                 if (!user) return; 
                 const q = query(collection(db, 'estoque_lab_2026'), orderBy('name')); 
@@ -1619,25 +1516,28 @@
                     const map = {};
                     s.docs.forEach(d => {
                         const data = d.data();
-                        map[data.name.trim().toLowerCase()] = data;
+                        const key = data.name.trim().toLowerCase();
                         
-                        // Módulo 18 - Restrição de acesso a setores (Combobox)
                         if (appUser && appUser.role === 'lab_tech') {
                             if (data.allowedSectors && data.allowedSectors.length > 0 && !data.allowedSectors.includes(appUser.sector)) {
-                                return; // Pula este item se não estiver autorizado para o setor do lab_tech
+                                return;
                             }
                         }
 
-                        // Filtro visual das abas
                         if (appUser && (appUser.role === 'lab_tech' || appUser.role === 'master')) {
                             const isLogItem = CAT_GROUPS.logistics.includes(data.category);
                             if (techSubTab === 'admin' && isLogItem) return;
                             if (techSubTab === 'logistics' && !isLogItem) return;
                         }
-                        
-                        names.push(data.name);
 
-                        // Módulo 15 - Alerta automático de estoque (Debounce 60 min)
+                        // Agrupa somando os totais (caso haja múltiplos lotes do mesmo item)
+                        if (!map[key]) {
+                            map[key] = { ...data, totalQty: parseInt(data.currentQty) || 0 };
+                            names.push(data.name.trim());
+                        } else {
+                            map[key].totalQty += parseInt(data.currentQty) || 0;
+                        }
+
                         const current = parseInt(data.currentQty) || 0;
                         const min = parseInt(data.minQty) || 0;
                         if (current < min && min > 0) {
@@ -1645,23 +1545,12 @@
                             if (Date.now() - lastAlert > 60 * 60 * 1000) {
                                 alertDebounce.current.set(d.id, Date.now());
                                 const to = CAT_GROUPS.logistics.includes(data.category) ? EMAIL_LOGISTICS : EMAIL_ADMIN;
-                                const msgHtml = `
-                                    <div style="font-family: sans-serif; color: #333;">
-                                        <h2 style="color: #d97706;">⚠️ Alerta de Estoque Baixo</h2>
-                                        <p>O item <b>${data.name}</b> está abaixo do estoque mínimo estabelecido.</p>
-                                        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 500px;">
-                                            <tr><td style="background:#f8fafc; font-weight:bold;">Item:</td><td>${data.name}</td></tr>
-                                            <tr><td style="background:#f8fafc; font-weight:bold;">Local:</td><td>${data.location || '-'}</td></tr>
-                                            <tr><td style="background:#f8fafc; font-weight:bold;">Qtd. Atual:</td><td><span style="color:#dc2626; font-weight:bold;">${current}</span></td></tr>
-                                            <tr><td style="background:#f8fafc; font-weight:bold;">Mínimo:</td><td>${min}</td></tr>
-                                        </table>
-                                        <p style="font-size:12px; color:#94a3b8; mt-4">Alerta gerado automaticamente pelo LabFlow 2026.</p>
-                                    </div>
-                                `;
-                                sendEmailNotification(to, `⚠️ Reposição necessária: ${data.name}`, msgHtml);
+                                sendEmailNotification(to, `⚠️ Reposição necessária: ${data.name}`, `<h3>Estoque Baixo</h3><p>O item ${data.name} (Lote: ${data.lote || '-'}) possui ${current} unidades (Mín: ${min}).</p>`);
                             }
                         }
                     });
+                    
+                    names.sort((a, b) => a.localeCompare(b));
                     setInventoryNames(names);
                     setInventoryMap(map);
                 }); 
@@ -1722,7 +1611,6 @@
                         statusUpdatedAt: new Date().toISOString() 
                     }); 
                     
-                    // Módulo 12 (a): Notificação de novo pedido
                     const toEmail = CAT_GROUPS.logistics.includes(category) ? EMAIL_LOGISTICS : EMAIL_ADMIN;
                     const htmlMsg = `
                         <div style="font-family: sans-serif; color: #333;">
@@ -1734,7 +1622,6 @@
                                 <tr><td style="background:#f8fafc; font-weight:bold;">Urgente:</td><td>${isUrgent ? 'SIM 🔴' : 'Não'}</td></tr>
                                 <tr><td style="background:#f8fafc; font-weight:bold;">Obs:</td><td>${notes || '-'}</td></tr>
                             </table>
-                            <p>Por favor, verifique o sistema LabFlow para dar baixa.</p>
                         </div>
                     `;
                     sendEmailNotification(toEmail, `Novo pedido: ${newItem.trim()}`, htmlMsg);
@@ -1778,7 +1665,6 @@
                 await updateDoc(doc(db, 'solicitacoes_lab_2026', selectedReqId), { status: 'out_of_stock', statusUpdatedAt: new Date().toISOString(), logisticsMessage: stockMessage || '' }); 
                 logAudit('status_alterado', { requestId: selectedReqId, newStatus: 'out_of_stock' }, appUser);
                 
-                // Módulo 12 (b)
                 if (selectedReq && selectedReq.requesterEmail) {
                     sendEmailNotification(selectedReq.requesterEmail, `Atualização do pedido: ${selectedReq.item} — Em Falta`, `<p>Olá,</p><p>Seu pedido de <b>${selectedReq.item}</b> está EM FALTA.</p><p>Motivo: ${stockMessage || 'Não informado.'}</p>`);
                 }
@@ -1793,7 +1679,6 @@
                 await updateDoc(doc(db, 'solicitacoes_lab_2026', id), d); 
                 logAudit('status_alterado', { requestId: id, newStatus: s }, appUser);
                 
-                // Módulo 12 (b)
                 if (req && req.requesterEmail && s === 'approved') {
                     sendEmailNotification(req.requesterEmail, `Atualização do pedido: ${req.item} — Disponível`, `<p>Olá,</p><p>Seu pedido de <b>${req.item}</b> (Qtd: ${req.quantity}) está DISPONÍVEL.</p><p>Acesse o LabFlow para confirmar a retirada física do item.</p>`);
                 }
@@ -1812,7 +1697,6 @@
                 }
             };
 
-            // Módulo 14 - Assinatura digital na retirada
             const handleConfirmReceipt = async (id, req) => {
                 const now = new Date().toISOString();
                 await updateDoc(doc(db, 'solicitacoes_lab_2026', id), {
@@ -1847,7 +1731,6 @@
                 logAudit('status_alterado', { requestId: id, newStatus: 'approved_logistics_in' }, appUser);
             };
 
-            // Módulo 16 - Parte B: Fallback Envio Manual Relatório Semanal
             const handleSendWeeklyReport = async () => {
                 const lastWeek = new Date();
                 lastWeek.setDate(lastWeek.getDate() - 7);
@@ -2157,7 +2040,7 @@
 
                     const inventoryArray = Object.values(inventoryMap);
                     inventoryArray.sort((a,b) => a.name.localeCompare(b.name)).forEach(item => {
-                        const cur = parseInt(item.currentQty) || 0;
+                        const cur = parseInt(item.totalQty) || 0;
                         const min = parseInt(item.minQty) || 0;
                         const max = parseInt(item.maxQty) || 0;
                         let status = 'OK / Normal';
@@ -2306,7 +2189,6 @@
                                 {isDarkMode ? <Icons.Sun /> : <Icons.Moon />}
                             </button>
 
-                            {/* Botão Relatório Semanal (Módulo 16) */}
                             {appUser.role === 'master' && (
                                 <button onClick={handleSendWeeklyReport} className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold py-2 px-3 rounded transition" title="Disparar E-mail Semanal Agora">
                                     <Icons.Mail /> <span className="hidden sm:inline">Relatório E-mail</span>
@@ -2360,7 +2242,6 @@
                                     )}
                                 </button>
                             )}
-                            {/* Nova Aba de Auditoria (Apenas Master) */}
                             {appUser.role === 'master' && (
                                 <button onClick={() => setView('audit')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'audit' ? (isFestive ? 'bg-gradient-to-r from-green-600 to-green-700 text-yellow-300 border-green-800 shadow-md' : 'bg-blue-600 text-white border-blue-600 shadow-md') : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
                                     <Icons.Shield /> Auditoria
@@ -2412,13 +2293,20 @@
                                                         <select 
                                                             value={newItem} 
                                                             onChange={handleItemChange} 
-                                                            className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer"
+                                                            className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer text-sm md:text-base font-medium text-slate-700"
                                                             required
                                                         >
                                                             <option value="" disabled>Selecione um item do estoque...</option>
-                                                            {inventoryNames.sort((a, b) => a.localeCompare(b)).map((name, i) => (
-                                                                <option key={i} value={name}>{name}</option>
-                                                            ))}
+                                                            {inventoryNames.map((name, i) => {
+                                                                const itemData = inventoryMap[name.toLowerCase()];
+                                                                const total = itemData ? itemData.totalQty : 0;
+                                                                const isAvail = total > 0;
+                                                                const icon = isAvail ? '🟢' : '🔴';
+                                                                const sup = toSuperscript(total);
+                                                                return (
+                                                                    <option key={i} value={name}>{icon} {name} {sup}</option>
+                                                                );
+                                                            })}
                                                         </select>
                                                     )}
                                                 </div>
@@ -2644,13 +2532,11 @@
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
         
-        /* <!-- CHANGELOG -->
-        * MÓDULO 12: Notificações por E-mail implementadas. `sendEmailNotification` criada e adicionada nas funções handleSubmitRequest (novo pedido), updateStatus e confirmOutOfStock (mudança de status) e processStockTransaction (nível de estoque atingiu estado Crítico).
-        * MÓDULO 14: Aceite Digital configurado. E-mail adicionado ao perfil em `users_lab_2026`. Componentes `RequestCard` e `HistoryRow` alterados para exibir botão de confirmação e a assinatura de quem retirou, associado à função `logAudit`.
-        * MÓDULO 15: Reposição Automática (Alerta Email) inserido na atualização de onSnapshot do inventário usando `alertDebounce` (React.useRef Map) de 60 minutos para não spammar e-mails de itens críticos.
-        * MÓDULO 16: Relatório Semanal Agendado documentado como Cloud Function no topo do arquivo. Fallback manual (botão "Relatório E-mail") adicionado ao Header no perfil Gestor que filtra os últimos 7 dias de pedidos e os estoques críticos para envio HTML.
-        * MÓDULO 17: Log de Auditoria Imutável integrado. Função `logAudit` gravando dados na coleção `audit_log_2026`. Pontos de interceptação configurados em todas as interações do CRUD do pedido, histórico e estoque. Nova View (Aba) 'Auditoria' construída exclusiva para o perfil master. Regras de banco de dados documentadas.
-        * MÓDULO 18: Controle de Acesso ao Estoque por Setor. Inserção do campo `allowedSectors` na inclusão e edição (`newItem` e `editData`). Filtragem robusta acionada nos loops em `displayedItems` do `InventoryView` e em `inventoryNames` da barra de seleção, ocultando componentes restritos para os técnicos não autorizados. Renderização de "Chips" de acesso no cartão do material.
+        /* <!-- CHANGELOG FINAL (Reinan) -->
+        * MÓDULO LOGÍSTICA FIFO (19): Lógica `processStockTransaction` refatorada para varrer o array de `matchingItems` em ordem de data de vencimento. Pedidos esvaziam o lote mais velho primeiro e saltam automaticamente para o próximo lote mais velho até suprir a quantidade total solicitada. Ajustes manuais de estoque `+` e `-` usam o `item.id` diretamente para não bagunçar o FIFO.
+        * MÓDULO INTELIGÊNCIA VISUAL (20): A lista suspensa de `<select>` de "Nova Solicitação" agora traz Semáforos `🟢` e `🔴` indicando visualmente se a soma de todos os lotes do item estão zerados ou disponíveis.
+        * MÓDULO INDICADOR SOBRESCRITO (21): Criada função `toSuperscript` para renderizar a quantidade numérica total no próprio `<select>` nativo utilizando caracteres unicode de superscript (Ex: 🟢 Álcool Etílico ²).
+        * MÓDULO CONTROLE ESTOQUE: Reinseridos e atrelados os `inputs` de Marca, Lote e Data de Validade no componente `InventoryView` em `showForm`, corrigindo o sumiço dos campos no momento da inclusão manual do estoque.
         */
     </script>
 </body>
