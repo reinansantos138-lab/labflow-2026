@@ -506,7 +506,12 @@
                         <h2 className="text-xl font-semibold text-center text-slate-700 mb-1">
                             {isRegistering ? 'Criar Nova Conta' : 'Acesso ao Sistema'}
                         </h2>
-                        <p className="text-center text-slate-500 mb-6 text-sm">LabFlow 2026</p>
+                        <p className="text-center text-slate-500 mb-1 text-sm">LabFlow 2026</p>
+                        {!isRegistering && (
+                            <p className="text-center text-blue-700 font-bold mb-6 text-xs tracking-widest uppercase bg-blue-50 border border-blue-100 rounded-lg py-2 px-3">
+                                🏭 Acesso ao Sistema do MQB
+                            </p>
+                        )}
                         
                         <div className="space-y-4">
                             {!isRegistering ? (
@@ -679,10 +684,23 @@
             return (
                 <div className={`bg-white rounded-xl shadow-sm border relative overflow-hidden transition-all ${isFirstToExpire ? 'ring-2 ring-blue-500 border-transparent shadow-md' : 'border-slate-200'}`}>
                     {hasMultipleLots && isFirstToExpire && (
-                        <div className="bg-blue-100 text-blue-800 text-[10px] py-1 font-bold flex items-center justify-center gap-1 border-b border-blue-200">
-                            ⚠️ USAR PRIMEIRO (Vencimento mais próximo)
+                        <div className="bg-blue-600 text-white text-[10px] py-1.5 font-bold flex items-center justify-center gap-1 border-b border-blue-700 shadow-sm">
+                            ⚠️ FIFO — USAR PRIMEIRO (vencimento mais próximo)
                         </div>
                     )}
+                    {!isFirstToExpire && item.validade && !hasMultipleLots && (() => {
+                        const vDate = new Date(`${item.validade}T12:00:00`);
+                        const today = new Date();
+                        const diffDays = Math.ceil((vDate - today) / (1000 * 60 * 60 * 24));
+                        if (diffDays <= 30 && diffDays >= 0) {
+                            return (
+                                <div className="bg-orange-500 text-white text-[10px] py-1 font-bold flex items-center justify-center gap-1 border-b border-orange-600">
+                                    ⏰ ATENÇÃO — Vence em {diffDays} dias
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
                     
                     <div className={`absolute ${hasMultipleLots && isFirstToExpire ? 'top-6' : 'top-0'} right-0 px-3 py-1 text-[10px] font-bold uppercase rounded-bl-lg border-l border-b ${getStatusColor(item.currentQty, item.minQty)}`}>{getStatusLabel(item.currentQty, item.minQty)}</div>
                     
@@ -693,11 +711,21 @@
                                 <div className="text-xs text-slate-500 mb-2 mt-1">
                                     {CAT_LABELS[item.category] || item.category} • Local: {item.location || '-'}
                                     
-                                    {(item.marca || item.lote) && (
-                                        <div className="mt-1.5 font-medium text-slate-600 bg-slate-50 p-1.5 rounded border border-slate-100 inline-block">
-                                            {item.marca && <span>Marca: <strong className="text-slate-700">{item.marca}</strong> </span>}
-                                            {item.marca && item.lote && <span className="mx-1 opacity-50">|</span>}
-                                            {item.lote && <span>Lote: <strong className="text-slate-700">{item.lote}</strong></span>}
+                                    {(item.marca || item.lote || item.validade) && (
+                                        <div className="mt-1.5 font-medium text-slate-600 bg-slate-50 p-1.5 rounded border border-slate-100 flex flex-wrap gap-x-3 gap-y-1 items-center">
+                                            {item.marca && (
+                                                <span className="flex items-center gap-1 text-xs">
+                                                    <span className="text-slate-400 font-bold uppercase text-[10px]">Marca</span>
+                                                    <strong className="text-slate-700">{item.marca}</strong>
+                                                </span>
+                                            )}
+                                            {item.lote && (
+                                                <span className="flex items-center gap-1 text-xs">
+                                                    {item.marca && <span className="opacity-30">|</span>}
+                                                    <span className="text-slate-400 font-bold uppercase text-[10px]">Lote</span>
+                                                    <strong className="text-slate-700">{item.lote}</strong>
+                                                </span>
+                                            )}
                                         </div>
                                     )}
                                     {expiryBadge && <div className="mt-2 block">{expiryBadge}</div>}
@@ -885,6 +913,13 @@
         const PurchaseRequestView = ({ userRole }) => {
             const [items, setItems] = React.useState([]);
             const [searchTerm, setSearchTerm] = React.useState('');
+            const [editingId, setEditingId] = React.useState(null);
+            const [editData, setEditData] = React.useState({});
+            const [scCodes, setScCodes] = React.useState(() => {
+                try { return JSON.parse(localStorage.getItem('labflow_sc_codes') || '{}'); } catch(e) { return {}; }
+            });
+
+            const canEdit = userRole === 'admin' || userRole === 'logistics' || userRole === 'master';
 
             React.useEffect(() => {
                 const q = query(collection(db, 'estoque_lab_2026'), orderBy('name'));
@@ -912,6 +947,22 @@
                 return showItem && isLowStock && matchesSearch;
             });
 
+            const handleSaveScInfo = (itemId) => {
+                const updated = { ...scCodes, [itemId]: editData };
+                setScCodes(updated);
+                localStorage.setItem('labflow_sc_codes', JSON.stringify(updated));
+                setEditingId(null);
+                setEditData({});
+            };
+
+            const handleDeleteScInfo = (itemId) => {
+                if (!confirm('Remover as informações de SC deste item?')) return;
+                const updated = { ...scCodes };
+                delete updated[itemId];
+                setScCodes(updated);
+                localStorage.setItem('labflow_sc_codes', JSON.stringify(updated));
+            };
+
             const handleExportPurchasePDF = () => {
                 if (purchaseList.length === 0) return alert("Nenhum item para compra.");
                 const { jsPDF } = window.jspdf;
@@ -924,16 +975,19 @@
                 doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}`, 14, 30);
                 doc.text(`Solicitante: ${userRole === 'master' ? 'Gestor do Sistema' : userRole === 'logistics' ? 'Logística (Alex)' : 'Administração (Cicilha)'}`, 14, 35);
 
-                const tableColumn = ["Item", "Categoria", "Qtd Atual", "Estoque Mín", "Sugestão de Compra"];
+                const tableColumn = ["Item", "Categoria", "Cód. SC", "Data SC", "Qtd Atual", "Estoque Mín", "Sugestão de Compra"];
                 const tableRows = purchaseList.map(item => {
                     const current = parseInt(item.currentQty || 0);
                     const min = parseInt(item.minQty || 0);
                     const max = parseInt(item.maxQty || 0);
                     const suggestion = max > 0 ? (max - current) : (min > 0 ? min * 2 : 0);
+                    const sc = scCodes[item.id] || {};
                     
                     return [
                         item.name,
                         CAT_LABELS_CLEAN[item.category] || item.category,
+                        sc.codigoSC || '-',
+                        sc.dataSC || '-',
                         `${current} ${item.unit}`,
                         min,
                         `${suggestion > 0 ? suggestion : '-'} ${item.unit}`
@@ -962,10 +1016,10 @@
                 <div className="animate-in fade-in">
                     <div className="bg-red-50 border border-red-100 p-4 rounded-lg mb-6">
                         <h3 className="text-red-800 font-bold flex items-center gap-2"><Icons.ShoppingCart /> Painel de Compras</h3>
-                        <p className="text-xs text-red-600 mt-1">Listando automaticamente itens com estoque Crítico ou em Atenção.</p>
+                        <p className="text-xs text-red-600 mt-1">Listando automaticamente itens com estoque Crítico ou em Atenção. {canEdit && <span className="font-semibold">Administração e Logística podem editar e excluir registros.</span>}</p>
                     </div>
 
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
                         <div className="relative w-full max-w-md">
                             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
                             <input type="text" placeholder="Filtrar lista de compras..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
@@ -975,7 +1029,7 @@
                         </button>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
                                 <tr>
@@ -985,6 +1039,9 @@
                                     <th className="p-3">Mínimo</th>
                                     <th className="p-3">Máximo</th>
                                     <th className="p-3 font-bold text-blue-600">Sugestão Compra</th>
+                                    {canEdit && <th className="p-3 text-purple-600 font-bold">Cód. SC</th>}
+                                    {canEdit && <th className="p-3 text-purple-600 font-bold">Data SC</th>}
+                                    {canEdit && <th className="p-3 text-center text-slate-400">Ações</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -993,9 +1050,11 @@
                                     const min = parseInt(item.minQty || 0);
                                     const max = parseInt(item.maxQty || 0);
                                     const suggestion = max > 0 ? (max - current) : (min * 2);
+                                    const sc = scCodes[item.id] || {};
+                                    const isEditing = editingId === item.id;
                                     
                                     return (
-                                        <tr key={item.id} className="hover:bg-slate-50">
+                                        <tr key={item.id} className={`hover:bg-slate-50 ${isEditing ? 'bg-purple-50/50' : ''}`}>
                                             <td className="p-3 font-bold text-slate-700">{item.name}</td>
                                             <td className="p-3">
                                                 {current <= 0 || current < min ? 
@@ -1007,10 +1066,73 @@
                                             <td className="p-3 text-slate-400">{min}</td>
                                             <td className="p-3 text-slate-400">{max}</td>
                                             <td className="p-3 font-bold text-blue-600 bg-blue-50/50">{suggestion > 0 ? suggestion : '-'} {item.unit}</td>
+                                            
+                                            {canEdit && (
+                                                <td className="p-3">
+                                                    {isEditing ? (
+                                                        <input
+                                                            type="text"
+                                                            value={editData.codigoSC || ''}
+                                                            onChange={e => setEditData({...editData, codigoSC: e.target.value})}
+                                                            placeholder="Ex: SC-2026-001"
+                                                            className="w-full p-1.5 border border-purple-300 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400"
+                                                        />
+                                                    ) : (
+                                                        <span className={`text-xs font-medium ${sc.codigoSC ? 'text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-100' : 'text-slate-300'}`}>
+                                                            {sc.codigoSC || '—'}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            )}
+                                            {canEdit && (
+                                                <td className="p-3">
+                                                    {isEditing ? (
+                                                        <input
+                                                            type="date"
+                                                            value={editData.dataSC || ''}
+                                                            onChange={e => setEditData({...editData, dataSC: e.target.value})}
+                                                            className="w-full p-1.5 border border-purple-300 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400"
+                                                        />
+                                                    ) : (
+                                                        <span className={`text-xs font-medium ${sc.dataSC ? 'text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-100' : 'text-slate-300'}`}>
+                                                            {sc.dataSC ? new Date(sc.dataSC + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            )}
+                                            {canEdit && (
+                                                <td className="p-3">
+                                                    {isEditing ? (
+                                                        <div className="flex items-center gap-1 justify-center">
+                                                            <button onClick={() => { setEditingId(null); setEditData({}); }} className="text-xs text-slate-400 hover:text-slate-600 px-2 py-1 bg-white border rounded">✕</button>
+                                                            <button onClick={() => handleSaveScInfo(item.id)} className="text-xs text-white bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded font-bold">Salvar</button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-1 justify-center">
+                                                            <button 
+                                                                onClick={() => { setEditingId(item.id); setEditData(sc); }}
+                                                                className="text-blue-500 hover:bg-blue-50 p-1.5 rounded transition"
+                                                                title="Editar SC"
+                                                            >
+                                                                <Icons.Edit />
+                                                            </button>
+                                                            {(sc.codigoSC || sc.dataSC) && (
+                                                                <button 
+                                                                    onClick={() => handleDeleteScInfo(item.id)}
+                                                                    className="text-red-400 hover:bg-red-50 p-1.5 rounded transition"
+                                                                    title="Remover SC"
+                                                                >
+                                                                    <Icons.Trash2 />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            )}
                                         </tr>
                                     );
                                 })}
-                                {purchaseList.length === 0 && <tr><td colSpan="6" className="p-8 text-center text-slate-400">Tudo certo! Nenhum item precisa de reposição no momento.</td></tr>}
+                                {purchaseList.length === 0 && <tr><td colSpan={canEdit ? "9" : "6"} className="p-8 text-center text-slate-400">Tudo certo! Nenhum item precisa de reposição no momento.</td></tr>}
                             </tbody>
                         </table>
                     </div>
