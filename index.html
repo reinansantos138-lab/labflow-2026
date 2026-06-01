@@ -2329,8 +2329,14 @@
                 
                 if (appUser.role === 'admin') {
                     list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
-                } else if (appUser.role === 'lab_tech') {
-                    list = list.filter(r => !CAT_GROUPS.logistics.includes(r.category));
+                } else if (appUser.role === 'logistics') {
+                    list = list.filter(r => CAT_GROUPS.logistics.includes(r.category));
+                } else if (appUser.role === 'lab_tech' || appUser.role === 'master') {
+                    if (techSubTab === 'admin') {
+                        list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
+                    } else if (techSubTab === 'logistics') {
+                        list = list.filter(r => CAT_GROUPS.logistics.includes(r.category));
+                    }
                 }
                 
                 const active = [], history = [], masterHistory = [];
