@@ -1137,6 +1137,297 @@
             );
         };
 
+        const InventoryView = ({ userRole, currentUser }) => {
+            const { showAlert, showConfirm } = React.useContext(DialogContext);
+            const [items, setItems] = React.useState([]);
+            const [searchTerm, setSearchTerm] = React.useState('');
+            const [showForm, setShowForm] = React.useState(false);
+            const [isInventoryLocked, setIsInventoryLocked] = React.useState(true);
+            const [newItem, setNewItem] = React.useState({ name: '', category: userRole === 'logistics' ? 'reagente' : 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '', marca: '', lote: '', validade: '', allowedSectors: [] });
+            const [filterTab, setFilterTab] = React.useState('Todos');
+
+            React.useEffect(() => {
+                const q = query(collection(db, 'estoque_lab_2026'), orderBy('name'));
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setItems(docs);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            const handleAddItem = async (e) => {
+                e.preventDefault(); if (!newItem.name) return;
+                
+                const itemToSave = {
+                    ...newItem,
+                    name: newItem.name.trim(),
+                    currentQty: parseInt(newItem.currentQty) || 0,
+                    minQty: parseInt(newItem.minQty) || 0,
+                    maxQty: parseInt(newItem.maxQty) || 0,
+                    updatedAt: new Date().toISOString()
+                };
+
+                try { 
+                    await addDoc(collection(db, 'estoque_lab_2026'), itemToSave); 
+                    setNewItem({ name: '', category: userRole === 'logistics' ? 'reagente' : 'epi', unit: 'un', currentQty: '', minQty: '', maxQty: '', location: '', notes: '', marca: '', lote: '', validade: '', allowedSectors: [] }); 
+                    setShowForm(false); 
+                    logAudit('item_estoque_criado', { item: itemToSave.name }, currentUser);
+                    showAlert("Item salvo com sucesso no banco de dados!");
+                } catch (e) { 
+                    console.error(e);
+                    showAlert("Erro ao adicionar item: " + e.message);
+                }
+            };
+
+            const handleUpdateQty = async (id, itemName, currentQty, change) => {
+                const newQty = parseInt(currentQty) + change;
+                if (newQty < 0) {
+                    showAlert("Atenção: A quantidade não pode ficar negativa!");
+                    return;
+                }
+                try {
+                    await processStockTransaction(itemName, Math.abs(change), change > 0 ? 'in' : 'out', 'manual', currentUser, null, 'Ajuste Manual Rápido', id);
+                } catch (e) { showAlert(e.message); }
+            };
+            
+            const handleDeleteItem = async (id, itemName) => {
+                showConfirm('Tem certeza que deseja excluir este item permanentemente do estoque?', async () => {
+                    try { 
+                        await deleteDoc(doc(db, 'estoque_lab_2026', id)); 
+                        logAudit('item_estoque_excluido', { itemId: id, item: itemName }, currentUser);
+                    } catch(e) { console.error(e); }
+                });
+            };
+
+            const handleEditItem = async (id, updatedData) => {
+                try {
+                    await updateDoc(doc(db, 'estoque_lab_2026', id), { ...updatedData, updatedAt: new Date().toISOString() });
+                    logAudit('item_estoque_editado', { itemId: id, item: updatedData.name }, currentUser);
+                } catch (e) { console.error(e); }
+            };
+
+            const getStatus = (current, min) => {
+                const cur = parseInt(current) || 0;
+                const minimum = parseInt(min) || 0;
+                if (cur <= 0 || cur < minimum) return 'Crítico';
+                if (cur >= minimum && cur <= minimum * 1.2) return 'Atenção';
+                return 'OK';
+            };
+
+            const displayedItems = items.filter(item => {
+                const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+                if (!matchesSearch) return false;
+                
+                if (userRole === 'admin' && !CAT_GROUPS.admin.includes(item.category)) return false;
+                if (userRole === 'logistics' && !CAT_GROUPS.logistics.includes(item.category)) return false;
+
+                if (filterTab === 'Todos') return true;
+                const status = getStatus(item.currentQty, item.minQty);
+                if (filterTab === 'OK' && status === 'OK') return true;
+                if (filterTab === 'Atenção' && status === 'Atenção') return true;
+                if (filterTab === 'Crítico' && status === 'Crítico') return true;
+                return false;
+            });
+
+            const itemsGroupedByName = {};
+            displayedItems.forEach(item => {
+                const name = item.name.trim().toLowerCase();
+                if (!itemsGroupedByName[name]) itemsGroupedByName[name] = [];
+                itemsGroupedByName[name].push(item);
+            });
+
+            const finalDisplayList = [];
+            Object.values(itemsGroupedByName).forEach(group => {
+                group.sort((a, b) => {
+                    if (!a.validade) return 1;
+                    if (!b.validade) return -1;
+                    return new Date(a.validade) - new Date(b.validade);
+                });
+                group.forEach((item, index) => {
+                    item.isFirstToExpire = (index === 0 && item.validade);
+                    item.hasMultipleLots = group.length > 1;
+                    finalDisplayList.push(item);
+                });
+            });
+
+            const isLogCategoryNewItem = ['reagente', 'materiais', 'consumivel_log'].includes(newItem.category);
+
+            return (
+                <div className="animate-in fade-in">
+                    <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                        <div className="relative w-full md:w-96">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
+                            <input type="text" placeholder="Buscar item no estoque..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
+                        </div>
+                        
+                        <div className="flex gap-2">
+                             <button 
+                                onClick={() => setIsInventoryLocked(!isInventoryLocked)} 
+                                className={`px-4 py-2 rounded-lg font-bold shadow flex items-center gap-2 transition ${isInventoryLocked ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-red-100 text-red-600 hover:bg-red-200'}`}
+                                title={isInventoryLocked ? "Destravar Edição" : "Travar Edição"}
+                            >
+                                {isInventoryLocked ? <><Icons.Lock /> Travado</> : <><Icons.Unlock /> Destravado</>}
+                            </button>
+                            <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow flex items-center gap-2">
+                                <Icons.Plus /> Novo Item
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2 mb-6 overflow-x-auto pb-2 border-b border-slate-200">
+                        {['Todos', 'OK', 'Atenção', 'Crítico'].map(tab => {
+                            let count = items.filter(item => {
+                                if (userRole === 'admin' && !CAT_GROUPS.admin.includes(item.category)) return false;
+                                if (userRole === 'logistics' && !CAT_GROUPS.logistics.includes(item.category)) return false;
+                                if (tab === 'Todos') return true;
+                                return getStatus(item.currentQty, item.minQty) === tab;
+                            }).length;
+
+                            return (
+                                <button 
+                                    key={tab} 
+                                    onClick={() => setFilterTab(tab)}
+                                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap border ${filterTab === tab ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700'}`}
+                                >
+                                    {tab === 'OK' ? 'OK / Disponível' : tab}
+                                    {tab !== 'Todos' && <span className="ml-1 opacity-75">({count})</span>}
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    {showForm && (
+                        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
+                            <h3 className="font-bold text-slate-700 mb-3">Cadastrar Novo Item</h3>
+                            <form onSubmit={handleAddItem}>
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <input className="p-2 border rounded text-sm outline-none" placeholder="Nome do Item" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
+                                    <select className="p-2 border rounded text-sm outline-none" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
+                                        {(userRole === 'master' || userRole === 'logistics') && <optgroup label="Almoxarifado (Logística)"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>}
+                                        {(userRole === 'master' || userRole === 'admin') && <optgroup label="Adm (Escritório)"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup>}
+                                    </select>
+                                    <input className="p-2 border rounded text-sm outline-none" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
+                                    <select className="p-2 border rounded text-sm outline-none" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option><option value="FR">FR</option></select>
+                                    
+                                    <div className="md:col-span-4 grid grid-cols-3 gap-4 border-b border-slate-100 pb-4">
+                                        <input type="number" className="p-2 border rounded text-sm outline-none" placeholder="Qtd Atual" value={newItem.currentQty} onChange={e => setNewItem({...newItem, currentQty: e.target.value})} required />
+                                        <input type="number" className="p-2 border rounded text-sm outline-none" placeholder="Estoque Mínimo" value={newItem.minQty} onChange={e => setNewItem({...newItem, minQty: e.target.value})} />
+                                        <input type="number" className="p-2 border rounded text-sm outline-none" placeholder="Estoque Máximo" value={newItem.maxQty} onChange={e => setNewItem({...newItem, maxQty: e.target.value})} />
+                                    </div>
+                                </div>
+                                
+                                {isLogCategoryNewItem && (
+                                    <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 mb-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Marca</label>
+                                            <input className="w-full p-2 border rounded text-sm outline-none" placeholder="Ex: Sigma Aldrich" value={newItem.marca || ''} onChange={e => setNewItem({...newItem, marca: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Lote</label>
+                                            <input className="w-full p-2 border rounded text-sm outline-none" placeholder="Ex: LT-2026-X" value={newItem.lote || ''} onChange={e => setNewItem({...newItem, lote: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data de Validade</label>
+                                            <input type="date" className="w-full p-2 border rounded text-sm outline-none text-slate-600" value={newItem.validade || ''} onChange={e => setNewItem({...newItem, validade: e.target.value})} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {(userRole === 'master' || userRole === 'logistics' || userRole === 'admin') && (
+                                    <div className="mt-2 pt-2 pb-4">
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Restringir aos setores (vazio = visível para todos)</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {SETORES.map(s => (
+                                                <label key={s} className="flex items-center gap-1 text-[11px] text-slate-600 bg-slate-50 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:bg-slate-100">
+                                                    <input type="checkbox" checked={newItem.allowedSectors?.includes(s)} onChange={(e) => {
+                                                        let newSectors = [...(newItem.allowedSectors || [])];
+                                                        if(e.target.checked) newSectors.push(s);
+                                                        else newSectors = newSectors.filter(sec => sec !== s);
+                                                        setNewItem({...newItem, allowedSectors: newSectors});
+                                                    }} className="cursor-pointer" /> {s}
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <button type="submit" className="w-full md:w-auto mt-2 bg-green-600 text-white px-8 py-2 rounded font-bold hover:bg-green-700 shadow-sm transition">
+                                    Salvar Item no Estoque
+                                </button>
+                            </form>
+                        </div>
+                    )}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {finalDisplayList.length === 0 ? (
+                            <div className="col-span-full py-10 text-center text-slate-400">Nenhum item encontrado no estoque.</div>
+                        ) : (
+                            finalDisplayList.map(item => (
+                                <InventoryItemCard 
+                                    key={item.id} 
+                                    item={item} 
+                                    isLocked={isInventoryLocked}
+                                    onUpdateQty={handleUpdateQty}
+                                    onDelete={handleDeleteItem}
+                                    onEdit={handleEditItem}
+                                    isFirstToExpire={item.isFirstToExpire}
+                                    hasMultipleLots={item.hasMultipleLots}
+                                    userRole={userRole}
+                                />
+                            ))
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const SuggestionsView = ({ suggestions, userRole }) => {
+            const { showAlert, showConfirm } = React.useContext(DialogContext);
+
+            const handleUpdateStatus = async (id, status) => {
+                try {
+                    await updateDoc(doc(db, 'sugestoes_lab_2026', id), { status });
+                } catch(e) { showAlert("Erro ao atualizar status da sugestão."); }
+            };
+
+            const handleDelete = async (id) => {
+                showConfirm("Excluir esta sugestão definitivamente?", async () => {
+                    try {
+                        await deleteDoc(doc(db, 'sugestoes_lab_2026', id));
+                    } catch(e) { showAlert("Erro ao excluir sugestão."); }
+                });
+            };
+
+            return (
+                <div className="animate-in fade-in space-y-4">
+                    <div className="bg-yellow-50 border border-yellow-100 p-4 rounded-xl mb-6">
+                        <h3 className="text-yellow-800 font-bold flex items-center gap-2"><Icons.Lightbulb /> Caixa de Sugestões</h3>
+                        <p className="text-xs text-yellow-600 mt-1">Itens solicitados pelos técnicos que não existem no banco de dados.</p>
+                    </div>
+                    {suggestions.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhuma sugestão no momento.</div> : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {suggestions.map(sug => (
+                                <div key={sug.id} className={`bg-white p-4 rounded-xl shadow-sm border ${sug.status === 'pending' ? 'border-yellow-300' : 'border-slate-200'} relative`}>
+                                    {sug.status === 'pending' && <span className="absolute top-2 right-2 bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-0.5 rounded-full">NOVA</span>}
+                                    {sug.status === 'reviewed' && <span className="absolute top-2 right-2 bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full">VISTA</span>}
+                                    <h4 className="font-bold text-slate-800 mb-1 pr-12">{sug.item}</h4>
+                                    <div className="text-xs text-slate-500 mb-2">Sugerido por: {sug.requesterName} ({sug.requesterSector}) em {formatDate(sug.createdAt)}</div>
+                                    <div className="bg-slate-50 p-2 rounded text-sm text-slate-700 italic mb-4">"{sug.motivo}"</div>
+                                    
+                                    {(userRole === 'admin' || userRole === 'master' || userRole === 'logistics') && (
+                                        <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+                                            {sug.status === 'pending' && <button onClick={() => handleUpdateStatus(sug.id, 'reviewed')} className="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded font-bold hover:bg-blue-100 transition">Marcar como Vista</button>}
+                                            <button onClick={() => handleDelete(sug.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded transition"><Icons.Trash2 /></button>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
         const DashboardView = ({ requests, userRole }) => {
             const stats = React.useMemo(() => {
                 const relevantRequests = requests.filter(r => {
