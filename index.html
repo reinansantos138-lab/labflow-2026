@@ -539,7 +539,6 @@
         };
 
         const InventoryItemCard = ({ item, isLocked, onUpdateQty, onDelete, onEdit, isFirstToExpire, hasMultipleLots, userRole }) => {
-            const { showAlert } = React.useContext(DialogContext);
             const [isEditing, setIsEditing] = React.useState(false);
             const [editData, setEditData] = React.useState({ ...item });
             const [adjustMode, setAdjustMode] = React.useState(null); 
@@ -689,7 +688,6 @@
 
         // --- STREAMING_CHUNK:Componente Card de Pedidos... ---
         const RequestCard = ({ req, role, onDelete, onUpdateStatus, onOutOfStock, onSaveStockInfo, onApprovePartial, onUpdateReq, onReceiveLogistics, onConfirmReceipt, currentUser }) => {
-            const { showAlert } = React.useContext(DialogContext);
             const [itemCode, setItemCode] = React.useState(req.itemCode || '');
             const [storageLocation, setStorageLocation] = React.useState(req.storageLocation || '');
             const [hasChanges, setHasChanges] = React.useState(false);
@@ -705,8 +703,8 @@
             React.useEffect(() => { if (!req.itemCode && !req.storageLocation && role !== 'lab_tech') { try { const catalog = JSON.parse(localStorage.getItem('labflow_catalog') || '{}'); const savedItem = catalog[req.item.trim().toLowerCase()]; if (savedItem) { if (savedItem.code) { setItemCode(savedItem.code); setHasChanges(true); } if (savedItem.loc) { setStorageLocation(savedItem.loc); setHasChanges(true); } } } catch (e) {} } }, [req.item, role]);
 
             const handleSaveInfo = () => { onSaveStockInfo(req.id, itemCode, storageLocation, req.item); setHasChanges(false); };
-            const handleStatusAction = async (status) => { if (status === 'approved') { try { await processStockTransaction(req.item, req.quantity, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Total (${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onUpdateStatus(req.id, status, req); } catch (error) { showAlert("Erro de Estoque: " + error.message); } } else { onUpdateStatus(req.id, status, req); } };
-            const handlePartialConfirm = async () => { try { await processStockTransaction(req.item, partialQty, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Parcial (${partialQty}/${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onApprovePartial(req.id, partialQty, req.quantity, req); setShowPartialInput(false); } catch (error) { showAlert("Erro de Estoque: " + error.message); } };
+            const handleStatusAction = async (status) => { if (status === 'approved') { try { await processStockTransaction(req.item, req.quantity, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Total (${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onUpdateStatus(req.id, status, req); } catch (error) { alert("Erro de Estoque: " + error.message); } } else { onUpdateStatus(req.id, status, req); } };
+            const handlePartialConfirm = async () => { try { await processStockTransaction(req.item, partialQty, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Parcial (${partialQty}/${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onApprovePartial(req.id, partialQty, req.quantity, req); setShowPartialInput(false); } catch (error) { alert("Erro de Estoque: " + error.message); } };
             const handleSaveEditReq = () => { onUpdateReq(req.id, { item: editItem.trim(), quantity: editQty, unit: editUnit, category: editCategory, requesterSector: editSector }); setIsEditingReq(false); };
             
             const isAdmCategory = CAT_GROUPS.admin.includes(req.category);
@@ -786,6 +784,8 @@
             const [editQty, setEditQty] = React.useState(req.quantity);
             const [editUnit, setEditUnit] = React.useState(req.unit);
             const [editCategory, setEditCategory] = React.useState(req.category);
+
+            const { showAlert, showConfirm } = React.useContext(DialogContext);
 
             const handleSave = () => {
                 onEdit(req.id, { item: editItem.trim(), quantity: editQty, unit: editUnit, category: editCategory });
