@@ -82,8 +82,14 @@
         .october-pink .bg-blue-100 { background-color: #fce7f3 !important; }
         .october-pink .border-blue-200, .october-pink .border-blue-500, .october-pink .border-blue-600 { border-color: #f9a8d4 !important; }
         .october-pink [class~="hover:text-blue-600"]:hover { color: #be185d !important; }
+        .october-pink-login { background-image: radial-gradient(circle at 12% 12%, rgba(244, 114, 182, 0.24), transparent 24rem), radial-gradient(circle at 92% 88%, rgba(251, 113, 133, 0.18), transparent 28rem), linear-gradient(135deg, #fff1f2 0%, #fce7f3 52%, #fff7ed 100%) !important; }
+        .october-pink-login::before { content: ""; position: fixed; pointer-events: none; left: -10rem; top: 12vh; width: 22rem; height: 76vh; border-radius: 999px; background: rgba(236, 72, 153, 0.16); filter: blur(70px); }
+        .dark .october-pink-login { background-image: radial-gradient(circle at 12% 12%, rgba(190, 24, 93, 0.18), transparent 24rem), linear-gradient(135deg, #0f172a, #1e293b) !important; }
+        .dark .october-pink-login::before { background: rgba(190, 24, 93, 0.18); }
+        .dark .october-pink .bg-pink-50, .dark .october-pink .bg-pink-100, .dark .october-pink .bg-blue-50 { background-color: rgba(131, 24, 67, 0.22) !important; }
+        .dark .october-pink .text-pink-700, .dark .october-pink .text-pink-800 { color: #fbcfe8 !important; }
         .dark .october-pink.bg-pink-50 { background-color: #0f172a !important; }
-        .dark .october-pink .bg-pink-50, .dark .october-pink .bg-blue-50 { background-color: rgba(131, 24, 67, 0.22) !important; }
+
         .dark .october-pink .bg-blue-100 { background-color: rgba(157, 23, 77, 0.35) !important; }
         .dark .october-pink .text-blue-600, .dark .october-pink .text-blue-700, .dark .october-pink .text-blue-800 { color: #f9a8d4 !important; }
         .dark .october-pink .border-blue-200, .dark .october-pink .border-blue-500, .dark .october-pink .border-blue-600 { border-color: rgba(244, 114, 182, 0.45) !important; }
@@ -429,9 +435,42 @@
             });
         };
 
+        const OctoberAwarenessModal = ({ onClose }) => (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm fade-in" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+                <section role="dialog" aria-modal="true" aria-labelledby="october-modal-title" className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+                    <div className="relative overflow-hidden bg-gradient-to-r from-pink-700 via-rose-600 to-fuchsia-700 px-6 py-6 text-white sm:px-8">
+                        <div className="absolute -right-8 -top-20 h-56 w-56 rounded-full border-[24px] border-white/10" aria-hidden="true"></div>
+                        <button type="button" onClick={onClose} aria-label="Fechar mensagem" className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-xl text-white transition hover:bg-white/25">×</button>
+                        <p className="relative text-[10px] font-extrabold uppercase tracking-[.2em] text-pink-100">01 a 31 de outubro</p>
+                        <h2 id="october-modal-title" className="relative mt-2 text-2xl font-black sm:text-3xl">Outubro Rosa</h2>
+                        <p className="relative mt-2 max-w-lg text-sm leading-6 text-pink-50">Informação, acolhimento e parceria também fazem parte do cuidado.</p>
+                    </div>
+                    <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
+                        <article className="rounded-2xl border border-pink-100 bg-pink-50 p-5">
+                            <p className="text-[10px] font-extrabold uppercase tracking-wider text-pink-700">Às mulheres do laboratório</p>
+                            <p className="mt-3 text-sm leading-6 text-slate-700">Vocês merecem cuidado, escuta e tempo para olhar para a própria saúde. Que esta campanha seja um lembrete gentil para buscar informação confiável e conversar com um profissional de saúde sempre que houver dúvidas ou preocupações.</p>
+                        </article>
+                        <article className="rounded-2xl border border-pink-100 bg-pink-50 p-5">
+                            <p className="text-[10px] font-extrabold uppercase tracking-wider text-pink-700">Aos homens do laboratório</p>
+                            <p className="mt-3 text-sm leading-6 text-slate-700">Vocês também fazem parte dessa rede de cuidado. Acolham e incentivem esposas, mães, filhas, irmãs, amigas e colegas a priorizar a saúde — com diálogo, apoio e respeito. Cuidar junto faz diferença.</p>
+                        </article>
+                    </div>
+                    <div className="flex flex-col gap-4 px-5 pb-6 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+                        <p className="max-w-md text-xs leading-5 text-slate-500">Cada pessoa tem uma história e necessidades próprias. Para orientação individual, procure uma equipe de saúde.</p>
+                        <button type="button" onClick={onClose} className="shrink-0 rounded-xl bg-pink-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-pink-200 transition hover:bg-pink-700">Entendi, vamos cuidar juntos</button>
+                    </div>
+                </section>
+            </div>
+        );
+
         // --- STREAMING_CHUNK:Componente LoginScreen... ---
         const LoginScreen = ({ onLogin }) => {
             const [isRegistering, setIsRegistering] = React.useState(false);
+            const [showCampaignInfo, setShowCampaignInfo] = React.useState(() => IS_PINK_OCTOBER && sessionStorage.getItem('labflow_october_info_seen') !== 'true');
+            const closeCampaignInfo = () => {
+                sessionStorage.setItem('labflow_october_info_seen', 'true');
+                setShowCampaignInfo(false);
+            };
             const [name, setName] = React.useState('');
             const [email, setEmail] = React.useState('');
             const [password, setPassword] = React.useState('');
@@ -519,14 +558,34 @@
             };
 
             return (
-                <div className={`min-h-screen ${IS_PINK_OCTOBER ? "bg-pink-50 october-pink" : "bg-slate-50"} flex flex-col items-center justify-center p-4`}>
-                    <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-slate-100 fade-in">
+                <div className={`min-h-screen ${IS_PINK_OCTOBER ? "bg-pink-50 october-pink october-pink-login" : "bg-slate-50"} relative flex flex-col items-center justify-center p-4 lg:p-8`}>
+                    <div className={`relative z-10 w-full ${IS_PINK_OCTOBER ? "max-w-6xl overflow-hidden rounded-3xl bg-white shadow-2xl md:grid md:grid-cols-2" : "max-w-md"}`}>
+                        {IS_PINK_OCTOBER && (
+                            <aside className="relative flex min-h-[250px] flex-col justify-between overflow-hidden bg-gradient-to-br from-pink-700 via-rose-600 to-fuchsia-700 p-6 text-white md:min-h-[680px] md:p-10">
+                                <div className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full border-[30px] border-white/10" aria-hidden="true"></div>
+                                <div className="pointer-events-none absolute -bottom-16 -left-16 h-56 w-56 rounded-full bg-white/10 blur-2xl" aria-hidden="true"></div>
+                                <div className="relative">
+                                    <div className="mb-8 flex items-center justify-between">
+                                        <span className="rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[.18em]">Campanha Outubro Rosa</span>
+                                        <span className="text-4xl drop-shadow" aria-hidden="true">🎗️</span>
+                                    </div>
+                                    <p className="text-xs font-bold uppercase tracking-[.2em] text-pink-100">01 a 31 de outubro de 2026</p>
+                                    <h3 className="mt-3 text-3xl font-black leading-tight sm:text-4xl">Cuidado que inspira.<br />Prevenção que aproxima.</h3>
+                                    <p className="mt-5 max-w-sm text-sm leading-6 text-pink-50">Uma mensagem de acolhimento, informação e parceria para todas as pessoas do laboratório.</p>
+                                </div>
+                                <div className="relative mt-8">
+                                    <button type="button" onClick={() => setShowCampaignInfo(true)} className="inline-flex items-center gap-3 rounded-xl bg-white px-5 py-3 text-sm font-extrabold text-pink-700 shadow-lg transition hover:-translate-y-0.5 hover:bg-pink-50">Ler mensagem da campanha <span aria-hidden="true">→</span></button>
+                                    <p className="mt-4 text-xs font-semibold text-pink-100">Informação, acolhimento e apoio.</p>
+                                </div>
+                            </aside>
+                        )}
+                    <div className={`${IS_PINK_OCTOBER ? "w-full bg-white p-7 md:p-10" : "bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-slate-100 fade-in"}`}>
                         <div className="flex justify-center mb-6"><InstitutionalLogo /></div>
                         <h2 className="text-xl font-semibold text-center text-slate-700 mb-1">
                             {isRegistering ? 'Criar Nova Conta' : 'Acesso ao Sistema do MQB'}
                         </h2>
                         <p className="text-center text-slate-500 mb-2 text-sm">LabFlow 2026</p>
-                        {IS_PINK_OCTOBER && <p className="text-center text-pink-700 mb-5 text-[11px] font-bold uppercase tracking-wider">Outubro Rosa · 16 a 31 de outubro</p>}
+                        {IS_PINK_OCTOBER && <p className="text-center text-pink-700 mb-5 text-[11px] font-bold uppercase tracking-wider">Outubro Rosa · 01 a 31 de outubro</p>}
                         
                         <div className="space-y-4">
                             {!isRegistering ? (
@@ -599,10 +658,12 @@
                             )}
                         </div>
                     </div>
+                    </div>
                     
                     <div className="mt-8 text-[11px] text-slate-400 font-semibold tracking-wide uppercase">
                         Developed by Reinan Souza dos Santos
                     </div>
+                    {IS_PINK_OCTOBER && showCampaignInfo && <OctoberAwarenessModal onClose={closeCampaignInfo} />}
                 </div>
             );
         };
@@ -2212,6 +2273,11 @@
             const [isDarkMode, setIsDarkMode] = React.useState(() => localStorage.getItem('labflow_theme') === 'dark');
             const [isExportingExcel, setIsExportingExcel] = React.useState(false);
             const [showConsumptionModal, setShowConsumptionModal] = React.useState(false);
+            const [showOctoberInfo, setShowOctoberInfo] = React.useState(() => IS_PINK_OCTOBER && sessionStorage.getItem('labflow_october_info_seen') !== 'true');
+            const closeOctoberInfo = () => {
+                sessionStorage.setItem('labflow_october_info_seen', 'true');
+                setShowOctoberInfo(false);
+            };
             
             const [consumptionStart, setConsumptionStart] = React.useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
             const [consumptionEnd, setConsumptionEnd] = React.useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
@@ -2948,6 +3014,21 @@
             return (
                 <div className={`min-h-screen pb-20 fade-in ${IS_PINK_OCTOBER ? "october-pink" : ""}`}>
                     <NoticeBanner notices={notices} userRole={appUser.role} onUpdateNotice={handleUpdateNotice} />
+                    {IS_PINK_OCTOBER && (
+                        <section className="relative isolate overflow-hidden bg-gradient-to-r from-pink-700 via-rose-600 to-fuchsia-700 text-white shadow-lg">
+                            <div className="pointer-events-none absolute -right-8 -top-24 h-72 w-72 rounded-full border-[30px] border-white/10" aria-hidden="true"></div>
+                            <div className="relative mx-auto flex max-w-5xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-center gap-4">
+                                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-3xl" aria-hidden="true">🎗️</span>
+                                    <div>
+                                        <p className="text-[10px] font-extrabold uppercase tracking-[.2em] text-pink-100">Outubro Rosa · 01 a 31 de outubro</p>
+                                        <h2 className="mt-1 text-lg font-black leading-tight sm:text-xl">Cuidado que inspira. Prevenção que aproxima.</h2>
+                                    </div>
+                                </div>
+                                <button type="button" onClick={() => setShowOctoberInfo(true)} className="shrink-0 rounded-xl border border-white/40 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/20">Ler mensagem da campanha</button>
+                            </div>
+                        </section>
+                    )}
                     <header className="bg-white text-slate-800 shadow-sm border-b border-slate-200 sticky top-0 z-10">
                         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center"><div className="flex items-center gap-4 select-none"><InstitutionalLogo /><div className="hidden sm:block h-8 w-px bg-slate-200"></div><div><h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1><p className="text-xs text-slate-500 uppercase">{appUser.role === 'master' ? 'Gestor do Sistema' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'logistics' ? 'Logística' : appUser.sector}</p></div></div><div className="flex items-center gap-2">
                             
@@ -3318,6 +3399,7 @@
                             </div>
                         </div>
                     )}
+                    {IS_PINK_OCTOBER && showOctoberInfo && <OctoberAwarenessModal onClose={closeOctoberInfo} />}
                 </div>
             );
         };
