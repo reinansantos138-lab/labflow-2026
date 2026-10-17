@@ -143,7 +143,7 @@
             'consumivel': '🧻 Consumível (Antigo)',
             'epi': '🥽 EPI',
             'escritorio': '📎 Escritório',
-            'consumivel_adm': '🗑️ Consumível (Adm)'
+            'consumivel_adm': '🗑️ Consumível (ADM)'
         };
 
         const CAT_LABELS_CLEAN = {
@@ -153,7 +153,7 @@
             'consumivel': 'Consumivel (Antigo)',
             'epi': 'EPI',
             'escritorio': 'Escritorio',
-            'consumivel_adm': 'Consumivel (Adm)'
+            'consumivel_adm': 'Consumivel (ADM)'
         };
 
         // --- STREAMING_CHUNK:Funções Utilitárias... ---
@@ -872,7 +872,7 @@
             return (
                 <div className={`bg-white rounded-lg shadow-sm border p-4 transition-all ${req.status === 'pending' ? 'border-l-4 border-l-yellow-400' : req.status === 'approved' ? 'border-l-4 border-l-green-500 bg-green-50/10' : 'border-l-4 border-l-red-500 opacity-75'}`}>
                     {isEditingReq ? (
-                        <div className="flex flex-col gap-3 bg-blue-50/50 p-2 rounded"><h4 className="text-xs font-bold text-blue-800 uppercase">Editando Pedido (Gestor)</h4><div className="grid grid-cols-2 gap-2"><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Item</label><input className="p-2 border rounded text-sm w-full" value={editItem} onChange={e => setEditItem(e.target.value)} /></div><div><label className="text-[10px] font-bold text-blue-800 uppercase">Categoria</label><select className="p-2 border rounded text-sm w-full" value={editCategory} onChange={e => setEditCategory(e.target.value)}><optgroup label="Adm (Escritório)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup><optgroup label="Almoxarifado (Logística)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup></select></div><div className="flex gap-1"><div className="flex-1"><label className="text-[10px] font-bold text-blue-800 uppercase">Qtd</label><input className="p-2 border rounded text-sm w-full" type="number" value={editQty} onChange={e => setEditQty(e.target.value)} /></div><div className="w-20"><label className="text-[10px] font-bold text-blue-800 uppercase">Un</label><select className="p-2 border rounded text-sm w-full" value={editUnit} onChange={e => setEditUnit(e.target.value)}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option><option value="FR">FR</option></select></div></div><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Setor Solicitante</label><select className="p-2 border rounded text-sm w-full" value={editSector} onChange={e => setEditSector(e.target.value)}>{SETORES.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div><div className="flex justify-end gap-2"><button onClick={() => setIsEditingReq(false)} className="px-3 py-1 bg-white border rounded text-xs">Cancelar</button><button onClick={handleSaveEditReq} className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold">Salvar Alterações</button></div></div>
+                        <div className="flex flex-col gap-3 bg-blue-50/50 p-2 rounded"><h4 className="text-xs font-bold text-blue-800 uppercase">Editando Pedido (Gestor)</h4><div className="grid grid-cols-2 gap-2"><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Item</label><input className="p-2 border rounded text-sm w-full" value={editItem} onChange={e => setEditItem(e.target.value)} /></div><div><label className="text-[10px] font-bold text-blue-800 uppercase">Categoria</label><select className="p-2 border rounded text-sm w-full" value={editCategory} onChange={e => setEditCategory(e.target.value)}><optgroup label="Adm (Escritório)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (ADM)</option></optgroup><optgroup label="Almoxarifado (Logística)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup></select></div><div className="flex gap-1"><div className="flex-1"><label className="text-[10px] font-bold text-blue-800 uppercase">Qtd</label><input className="p-2 border rounded text-sm w-full" type="number" value={editQty} onChange={e => setEditQty(e.target.value)} /></div><div className="w-20"><label className="text-[10px] font-bold text-blue-800 uppercase">Un</label><select className="p-2 border rounded text-sm w-full" value={editUnit} onChange={e => setEditUnit(e.target.value)}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option><option value="FR">FR</option></select></div></div><div className="col-span-2"><label className="text-[10px] font-bold text-blue-800 uppercase">Setor Solicitante</label><select className="p-2 border rounded text-sm w-full" value={editSector} onChange={e => setEditSector(e.target.value)}>{SETORES.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div><div className="flex justify-end gap-2"><button onClick={() => setIsEditingReq(false)} className="px-3 py-1 bg-white border rounded text-xs">Cancelar</button><button onClick={handleSaveEditReq} className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-bold">Salvar Alterações</button></div></div>
                     ) : (
                         <div className="flex flex-col md:flex-row justify-between gap-4">
                             <div className="flex-1">
@@ -962,7 +962,7 @@
                                 <option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="pct">pct</option><option value="FR">FR</option>
                             </select>
                             <select className="p-1.5 border rounded text-sm col-span-2" value={editCategory} onChange={e => setEditCategory(e.target.value)}>
-                                <optgroup label="Adm (Escritório)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (Adm)</option></optgroup>
+                                <optgroup label="Adm (Escritório)"><option value="epi">🥽 EPI</option><option value="escritorio">📎 Escritório</option><option value="consumivel_adm">🗑️ Consumível (ADM)</option></optgroup>
                                 <optgroup label="Almoxarifado (Logística)"><option value="reagente">🧪 Reagente</option><option value="materiais">📦 Materiais</option><option value="consumivel_log">🧴 Consumível (Lab)</option></optgroup>
                             </select>
                         </div>
@@ -1296,7 +1296,7 @@
             );
         };
 
-        const InventoryView = ({ userRole, currentUser }) => {
+        const InventoryView = ({ userRole, currentUser, allowedCategories = null }) => {
             const { showAlert, showConfirm } = React.useContext(DialogContext);
             const [items, setItems] = React.useState([]);
             const [searchTerm, setSearchTerm] = React.useState('');
@@ -1377,9 +1377,8 @@
                 const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
                 if (!matchesSearch) return false;
 
-                // Escritório agora é operado somente pelo módulo dedicado, que usa transações.
-                if ((userRole === 'admin' || userRole === 'master') && item.category === 'escritorio') return false;
-                
+                if (allowedCategories && !allowedCategories.includes(item.category)) return false;
+
                 if (userRole === 'admin' && !CAT_GROUPS.admin.includes(item.category)) return false;
                 if (userRole === 'logistics' && !CAT_GROUPS.logistics.includes(item.category)) return false;
 
@@ -1439,7 +1438,7 @@
                     <div className="flex gap-2 mb-6 overflow-x-auto pb-2 border-b border-slate-200">
                         {['Todos', 'OK', 'Atenção', 'Crítico'].map(tab => {
                             let count = items.filter(item => {
-                                if ((userRole === 'admin' || userRole === 'master') && item.category === 'escritorio') return false;
+                                if (allowedCategories && !allowedCategories.includes(item.category)) return false;
                                 if (userRole === 'admin' && !CAT_GROUPS.admin.includes(item.category)) return false;
                                 if (userRole === 'logistics' && !CAT_GROUPS.logistics.includes(item.category)) return false;
                                 if (tab === 'Todos') return true;
@@ -1466,8 +1465,8 @@
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <input className="p-2 border rounded text-sm outline-none" placeholder="Nome do Item" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
                                     <select className="p-2 border rounded text-sm outline-none" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
-                                        {(userRole === 'master' || userRole === 'logistics') && <optgroup label="Almoxarifado (Logística)"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>}
-                                        {(userRole === 'master' || userRole === 'admin') && <optgroup label="Administração"><option value="epi">EPI</option><option value="consumivel_adm">Consumível Adm</option></optgroup>}
+                                        {(userRole === 'master' || userRole === 'logistics') && (!allowedCategories || CAT_GROUPS.logistics.some(category => allowedCategories.includes(category))) && <optgroup label="Almoxarifado (Logística)"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>}
+                                        {(userRole === 'master' || userRole === 'admin') && (!allowedCategories || CAT_GROUPS.admin.some(category => allowedCategories.includes(category))) && <optgroup label="Administração"><option value="escritorio">Escritório</option><option value="epi">EPI</option><option value="consumivel_adm">Consumível (ADM)</option></optgroup>}
                                     </select>
                                     <input className="p-2 border rounded text-sm outline-none" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
                                     <select className="p-2 border rounded text-sm outline-none" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option><option value="FR">FR</option></select>
@@ -1546,11 +1545,9 @@
 
         const OFFICE_MOVEMENTS = 'movimentacoes_estoque_2026';
         const OFFICE_DISTRIBUTIONS = 'distribuicoes_escritorio_2026';
-        const OFFICE_UNITS = ['un', 'pacote', 'caixa', 'resma', 'rolo', 'cx', 'pct', 'kit', 'bloco', 'folha', 'par', 'L', 'kg', 'outro'];
-        const officeCodeKey = (value) => String(value || '').trim().toUpperCase();
+
         const officeItemCode = (item) => item?.internalCode || item?.itemCode || item?.code || '';
         const officeMovementLabel = (type, direction) => type === 'in' ? 'Entrada' : type === 'out' ? 'Saída' : type === 'return' ? 'Devolução' : `Ajuste (${direction === 'subtract' ? 'redução' : 'aumento'})`;
-        const officeNewCode = () => `ESC-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
         const officeDateLabel = (value) => {
             if (!value) return '—';
             const date = value?.toDate ? value.toDate() : new Date(value);
@@ -1572,12 +1569,8 @@
             const [periodStart, setPeriodStart] = React.useState('');
             const [periodEnd, setPeriodEnd] = React.useState('');
             const [reportType, setReportType] = React.useState('stock');
-            const [formOpen, setFormOpen] = React.useState(false);
-            const [editingId, setEditingId] = React.useState(null);
-            const [saving, setSaving] = React.useState(false);
             const [movementSaving, setMovementSaving] = React.useState(false);
             const [distributionSaving, setDistributionSaving] = React.useState(false);
-            const [form, setForm] = React.useState({ name: '', internalCode: '', description: '', unit: 'un', unitOther: '', initialQty: '', minQty: '', maxQty: '', location: '', marca: '', notes: '' });
             const [movementForm, setMovementForm] = React.useState({ itemId: '', type: 'in', quantity: '', direction: 'add', sector: '', notes: '' });
             const [distributionForm, setDistributionForm] = React.useState({ itemId: '', quantity: '', sector: '', notes: '' });
             const [deliveryDrafts, setDeliveryDrafts] = React.useState({});
@@ -1697,42 +1690,6 @@
                 const elapsedMonths = Math.max(2, (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth() + 1);
                 const average = outs.reduce((total, m) => total + Number(m.quantity || 0), 0) / elapsedMonths;
                 return average > 0 ? Number(itemById[itemId]?.currentQty || 0) / average : null;
-            };
-
-            const openNewItem = () => { setEditingId(null); setForm({ name: '', internalCode: officeNewCode(), description: '', unit: 'un', unitOther: '', initialQty: '', minQty: '', maxQty: '', location: '', marca: '', notes: '' }); setFormOpen(true); };
-            const openEditItem = (item) => { const existingUnit = item.unit || 'un'; setEditingId(item.id); setForm({ name: item.name || '', internalCode: officeItemCode(item), description: item.description || '', unit: OFFICE_UNITS.includes(existingUnit) ? existingUnit : 'outro', unitOther: OFFICE_UNITS.includes(existingUnit) ? '' : existingUnit, initialQty: '', minQty: item.minQty ?? '', maxQty: item.maxQty ?? '', location: item.location || '', marca: item.marca || item.brand || item.manufacturer || '', notes: item.notes || '' }); setFormOpen(true); };
-            const saveItem = async (event) => {
-                event.preventDefault();
-                const name = form.name.trim(), code = officeCodeKey(form.internalCode || officeNewCode()), unit = form.unit === 'outro' ? form.unitOther.trim() : form.unit;
-                const amount = Number(form.initialQty || 0), min = Number(form.minQty || 0), max = form.maxQty === '' || Number(form.maxQty) === 0 ? null : Number(form.maxQty);
-                if (!name || !code || !/^[A-Z0-9._-]+$/.test(code)) return showAlert('Informe nome e código interno (use letras, números, ponto, hífen ou sublinhado).');
-                if (!unit) return showAlert('Informe a unidade de medida.');
-                if ([amount, min, max].some(v => v !== null && (!Number.isFinite(v) || v < 0))) return showAlert('As quantidades devem ser números iguais ou maiores que zero.');
-                if (max !== null && max > 0 && max < min) return showAlert('O estoque máximo não pode ser menor que o mínimo.');
-                if (items.some(item => item.id !== editingId && officeCodeKey(item.internalCode) === code)) return showAlert('Este código interno já está cadastrado.');
-                const now = new Date().toISOString();
-                const data = { name, internalCode: code, description: form.description.trim(), unit, minQty: min, maxQty: max, location: form.location.trim(), marca: form.marca.trim(), notes: form.notes.trim(), category: 'escritorio', updatedAt: now };
-                setSaving(true);
-                try {
-                    if (editingId) {
-                        const legacyItem = itemById[editingId] || {};
-                        await updateDoc(doc(db, 'estoque_lab_2026', editingId), { ...data, createdAt: legacyItem.createdAt || now, createdAtMigratedFromLegacy: !legacyItem.createdAt });
-                        logAudit('escritorio_material_editado', { itemId: editingId, code, name }, currentUser);
-                    } else {
-                        const itemRef = doc(db, 'estoque_lab_2026', `office_${code}`);
-                        const initialMovementRef = doc(db, OFFICE_MOVEMENTS, `initial_${itemRef.id}`);
-                        await runTransaction(db, async (transaction) => {
-                            const itemSnap = await transaction.get(itemRef);
-                            const movementSnap = await transaction.get(initialMovementRef);
-                            if (itemSnap.exists()) throw new Error('Já existe um documento com este código. Escolha outro código interno.');
-                            transaction.set(itemRef, { ...data, currentQty: amount, createdAt: now, createdBy: currentUser?.name || 'Administração' });
-                            if (amount > 0) transaction.set(initialMovementRef, { itemId: itemRef.id, itemName: name, itemCode: code, itemCategory: 'escritorio', unit, type: 'in', quantity: amount, previousQty: 0, balanceAfter: amount, sector: '', origin: 'escritorio_module', user: currentUser?.name || 'Administração', userRole: currentUser?.role || 'admin', timestamp: now, notes: 'Saldo inicial no cadastro', operationId: initialMovementRef.id });
-                        });
-                        logAudit('escritorio_material_criado', { itemId: itemRef.id, code, name, initialQty: amount }, currentUser);
-                    }
-                    setFormOpen(false); setEditingId(null); showAlert(editingId ? 'Material atualizado.' : 'Material cadastrado.');
-                } catch (error) { showAlert(`Não foi possível salvar o material: ${error.message}`); }
-                finally { setSaving(false); }
             };
 
             const submitMovement = async (event) => {
@@ -1873,7 +1830,7 @@
             };
 
             if (loading) return <div className="text-center py-10 text-slate-500">Carregando materiais de Escritório...</div>;
-            const officeTabs = [['overview', 'Visão geral'], ['catalog', 'Materiais'], ['stock', 'Estoque e movimentações'], ['distribution', 'Solicitações e distribuição'], ['history', 'Histórico de consumo'], ['reports', 'Relatórios']];
+            const officeTabs = [['overview', 'Visão geral'], ['catalog', 'Controle de Estoque'], ['stock', 'Estoque e movimentações'], ['distribution', 'Solicitações e distribuição'], ['history', 'Histórico de consumo'], ['reports', 'Relatórios']];
             return (
                 <div className="animate-in fade-in space-y-5">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -1883,6 +1840,19 @@
                     <div className="flex gap-2 overflow-x-auto pb-2 border-b border-slate-200">{officeTabs.map(([key, label]) => <button key={key} onClick={() => { setActiveTab(key); setSelectedDetails(null); }} className={`px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap border ${activeTab === key ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>{label}</button>)}</div>
 
                     {activeTab === 'overview' && <div className="space-y-5">
+                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 sm:p-5">
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <h3 className="font-bold text-blue-950">Mini tutorial · Módulo Escritório</h3>
+                                    <ol className="mt-3 grid gap-3 text-sm text-blue-900 sm:grid-cols-3">
+                                        <li><b>1. Cadastre:</b> inclua cada material uma única vez no Controle de Estoque, em Escritório, EPI ou Consumível (ADM).</li>
+                                        <li><b>2. Distribua:</b> registre a solicitação por setor e confirme a entrega para atualizar o saldo.</li>
+                                        <li><b>3. Acompanhe:</b> consulte saldos, movimentações, consumo e reposição nas abas do módulo.</li>
+                                    </ol>
+                                </div>
+                                <button onClick={() => setActiveTab('catalog')} className="shrink-0 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800">Abrir Controle de Estoque</button>
+                            </div>
+                        </div>
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                             {[['Materiais ativos', activeItems.length, 'bg-blue-50 text-blue-700'], ['Estoque crítico', criticalItems.length, 'bg-red-50 text-red-700'], ['Estoque zerado', zeroCount, 'bg-orange-50 text-orange-700'], ['Saídas no período', describeUnits(totalsByUnit(consumedMovements)), 'bg-green-50 text-green-700']].map(([label, value, style]) => <div key={label} className={`${style} rounded-xl border border-slate-200 p-4`}><div className="text-xs font-bold uppercase opacity-75">{label}</div><div className="text-lg font-black mt-1">{value}</div></div>)}
                         </div>
@@ -1893,24 +1863,12 @@
                     </div>}
 
                     {activeTab === 'catalog' && <div className="space-y-4">
-                        <div className="flex justify-between items-center"><div><h3 className="font-bold text-slate-800">Cadastro de materiais</h3><p className="text-xs text-slate-500">O saldo inicial fica registrado como entrada; edições do saldo são feitas por movimentação.</p></div><button onClick={openNewItem} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold">+ Novo material</button></div>
-                        {formOpen && <form onSubmit={saveItem} className="bg-white p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <label className="text-xs font-bold text-slate-500">Nome<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
-                            <label className="text-xs font-bold text-slate-500">Código interno único<input required value={form.internalCode} onChange={e => setForm({ ...form, internalCode: e.target.value.toUpperCase() })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
-                            <label className="text-xs font-bold text-slate-500">Unidade<select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm">{OFFICE_UNITS.map(unit => <option key={unit} value={unit}>{unit === 'outro' ? 'Outra (informar)' : unit}</option>)}</select></label>
-                            {form.unit === 'outro' && <label className="text-xs font-bold text-slate-500">Unidade personalizada<input required value={form.unitOther} onChange={e => setForm({ ...form, unitOther: e.target.value })} placeholder="Ex.: fardo, folha, galão" className="mt-1 w-full p-2 border rounded text-sm" /></label>}
-                            <label className="text-xs font-bold text-slate-500 md:col-span-2">Descrição<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
-                            <label className="text-xs font-bold text-slate-500">Marca / fabricante<input value={form.marca} onChange={e => setForm({ ...form, marca: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
-                            <label className="text-xs font-bold text-slate-500">Localização<input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Sala / armário / prateleira" className="mt-1 w-full p-2 border rounded text-sm" /></label>
-                            <label className="text-xs font-bold text-slate-500">Estoque mínimo<input type="number" min="0" step="any" value={form.minQty} onChange={e => setForm({ ...form, minQty: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
-                            <label className="text-xs font-bold text-slate-500">Estoque máximo<input type="number" min="0" step="any" value={form.maxQty} onChange={e => setForm({ ...form, maxQty: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
-                            {!editingId && <label className="text-xs font-bold text-slate-500">Saldo inicial<input type="number" min="0" step="any" value={form.initialQty} onChange={e => setForm({ ...form, initialQty: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>}
-                            <label className="text-xs font-bold text-slate-500 md:col-span-3">Observações<textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" rows="2" /></label>
-                            <div className="md:col-span-3 flex justify-end gap-2"><button type="button" onClick={() => setFormOpen(false)} className="px-4 py-2 border rounded-lg text-sm">Cancelar</button><button disabled={saving} className="px-4 py-2 rounded-lg bg-green-600 text-white font-bold text-sm">{saving ? 'Salvando...' : 'Salvar material'}</button></div>
-                        </form>}
-                        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="text-left p-3">Código / material</th><th className="text-left p-3">Unidade</th><th className="text-left p-3">Saldo</th><th className="text-left p-3">Mín. / máx.</th><th className="text-left p-3">Local</th><th className="text-left p-3">Situação</th><th className="p-3"></th></tr></thead><tbody>{filteredItems.map(item => { const status = getStockStatus(item); const duration = durationFor(item.id); const isStale = staleItems.some(stale => stale.id === item.id); return <tr key={item.id} className="border-t border-slate-100"><td className="p-3"><b>{item.name}</b><div className="text-xs text-slate-400">{item.internalCode || 'Sem código'} {item.description ? `• ${item.description}` : ''}</div></td><td className="p-3">{item.unit || 'un'}</td><td className="p-3 font-bold">{item.currentQty || 0}</td><td className="p-3">{item.minQty || 0} / {item.maxQty ?? '—'}</td><td className="p-3">{item.location || '—'}</td><td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${status.style}`}>{status.label}</span><div className="text-[10px] text-slate-400 mt-1">{duration === null ? 'Sem histórico suficiente para previsão' : `Duração estimada: ${duration.toFixed(1)} meses`}</div>{isStale && <div className="text-[10px] text-orange-700 mt-1">Sem movimentação há mais de 90 dias</div>}</td><td className="p-3"><button onClick={() => openEditItem(item)} className="text-blue-600 text-xs font-bold">Editar</button><button onClick={() => { setHistoryItemId(item.id); setActiveTab('history'); }} className="block text-slate-500 text-xs">Histórico</button></td></tr>; })}{filteredItems.length === 0 && <tr><td colSpan="7" className="p-8 text-center text-slate-400">Nenhum material de Escritório encontrado.</td></tr>}</tbody></table></div>
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-800">Controle de Estoque compartilhado</h3>
+                            <p className="mt-1 text-sm text-slate-600">Cadastre e edite os materiais em um único lugar. As categorias administrativas disponíveis são Escritório, EPI e Consumível (ADM).</p>
+                        </div>
+                        <InventoryView userRole={currentUser.role} currentUser={currentUser} allowedCategories={CAT_GROUPS.admin} />
                     </div>}
-
                     {activeTab === 'stock' && <div className="grid lg:grid-cols-2 gap-4">
                         <form onSubmit={submitMovement} className="bg-white p-4 rounded-xl border border-slate-200 space-y-3"><h3 className="font-bold text-slate-800">Registrar movimentação</h3><label className="block text-xs font-bold text-slate-500">Material<select required value={movementForm.itemId} onChange={e => setMovementForm({ ...movementForm, itemId: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm"><option value="">Selecione</option>{activeItems.map(i => <option key={i.id} value={i.id}>{i.internalCode ? `${i.internalCode} • ` : ''}{i.name} ({i.currentQty || 0} {i.unit || 'un'})</option>)}</select></label>
                             <div className="grid grid-cols-2 gap-3"><label className="text-xs font-bold text-slate-500">Tipo<select value={movementForm.type} onChange={e => setMovementForm({ ...movementForm, type: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm"><option value="in">Entrada</option><option value="out">Saída</option><option value="adjustment">Ajuste</option><option value="return">Devolução</option></select></label><label className="text-xs font-bold text-slate-500">Quantidade<input required type="number" min="0.01" step="any" value={movementForm.quantity} onChange={e => setMovementForm({ ...movementForm, quantity: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label></div>
@@ -2348,7 +2306,9 @@
                             }
                         }
 
-                        if (appUser && (appUser.role === 'lab_tech' || appUser.role === 'master')) {
+                        if (appUser?.role === 'lab_tech' && !CAT_GROUPS.admin.includes(data.category)) return;
+
+                        if (appUser?.role === 'master') {
                             const isLogItem = CAT_GROUPS.logistics.includes(data.category);
                             if (techSubTab === 'admin' && isLogItem) return;
                             if (techSubTab === 'logistics' && !isLogItem) return;
@@ -2414,7 +2374,8 @@
             
             const handleSubmitRequest = async (e) => { 
                 e.preventDefault(); 
-                if (!newItem.trim() || !quantity) return; 
+                if (!newItem.trim() || !quantity) return;
+                if (appUser?.role === 'lab_tech' && !CAT_GROUPS.admin.includes(category)) return showAlert('Pedidos Almoxarifado são restritos à Logística e ao Master.'); 
                 try {
                     const docRef = await addDoc(collection(db, 'solicitacoes_lab_2026'), { 
                         item: newItem.trim(), 
@@ -2937,7 +2898,9 @@
                     list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
                 } else if (appUser.role === 'logistics') {
                     list = list.filter(r => CAT_GROUPS.logistics.includes(r.category));
-                } else if (appUser.role === 'lab_tech' || appUser.role === 'master') {
+                } else if (appUser.role === 'lab_tech') {
+                    list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
+                } else if (appUser.role === 'master') {
                     if (techSubTab === 'admin') {
                         list = list.filter(r => CAT_GROUPS.admin.includes(r.category));
                     } else if (techSubTab === 'logistics') {
@@ -3109,17 +3072,22 @@
                             )}
                         </div>
 
-                        {(appUser.role === 'lab_tech' || appUser.role === 'master') && (view === 'active' || view === 'history') && (
+                        {(appUser.role === 'lab_tech' || appUser.role === 'master' || appUser.role === 'logistics') && (view === 'active' || view === 'history') && (
                             <div className="flex gap-2 mb-6 border-b border-slate-200 pb-2">
-                                <button onClick={() => setTechSubTab('admin')} className={`px-4 py-1.5 text-sm font-bold rounded-full transition-all border ${techSubTab === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700'}`}>
+                                {appUser.role !== 'logistics' && <button onClick={() => setTechSubTab('admin')} className={"px-4 py-1.5 text-sm font-bold rounded-full transition-all border " + (appUser.role !== 'lab_tech' && techSubTab === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700')}>
                                     📎 Pedidos Administração
-                                </button>
-                                <button onClick={() => setTechSubTab('logistics')} className={`px-4 py-1.5 text-sm font-bold rounded-full transition-all border ${techSubTab === 'logistics' ? 'bg-indigo-100 text-indigo-700 border-indigo-200 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700'}`}>
-                                    🧪 Pedidos Almoxarifado
-                                </button>
+                                </button>}
+                                {appUser.role === 'lab_tech' ? (
+                                    <button type="button" disabled aria-disabled="true" title="Acesso reservado ao Técnico em logística e ao Master" className="flex cursor-not-allowed items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-4 py-1.5 text-sm font-bold text-slate-400 opacity-80">
+                                        <Icons.Lock /> Pedidos Almoxarifado
+                                    </button>
+                                ) : (
+                                    <button onClick={() => setTechSubTab('logistics')} className={"flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-bold transition-all " + (techSubTab === 'logistics' ? 'bg-indigo-100 text-indigo-700 border-indigo-200 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-slate-700')}>
+                                        <Icons.Unlock /> Pedidos Almoxarifado
+                                    </button>
+                                )}
                             </div>
                         )}
-
                         {view === 'active' && (
                             <>
                                 {(appUser.role === 'lab_tech' || appUser.role === 'master') && (
@@ -3186,11 +3154,11 @@
                                                 <div className="md:col-span-3">
                                                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoria</label>
                                                     <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer">
-                                                        {techSubTab === 'admin' || (appUser.role === 'master' && !CAT_GROUPS.logistics.includes(category)) ? (
+                                                        {appUser.role === 'lab_tech' || techSubTab === 'admin' || (appUser.role === 'master' && !CAT_GROUPS.logistics.includes(category)) ? (
                                                             <optgroup label="Adm (Escritório)">
                                                                 <option value="epi">🥽 EPI</option>
                                                                 <option value="escritorio">📎 Escritório</option>
-                                                                <option value="consumivel_adm">🗑️ Consumível (Adm)</option>
+                                                                <option value="consumivel_adm">🗑️ Consumível (ADM)</option>
                                                             </optgroup>
                                                         ) : (
                                                             <optgroup label="Almoxarifado (Logística)">
@@ -3203,7 +3171,7 @@
                                                             <optgroup label="Todas as Categorias">
                                                                 <option value="epi">🥽 EPI</option>
                                                                 <option value="escritorio">📎 Escritório</option>
-                                                                <option value="consumivel_adm">🗑️ Consumível (Adm)</option>
+                                                                <option value="consumivel_adm">🗑️ Consumível (ADM)</option>
                                                                 <option value="reagente">🧪 Reagente</option>
                                                                 <option value="materiais">📦 Materiais</option>
                                                                 <option value="consumivel_log">🧴 Consumível (Lab)</option>
