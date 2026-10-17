@@ -2799,9 +2799,6 @@
                                 <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6"><div className="relative w-full md:w-96"><div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div><input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div>
                                     <div className="flex items-center gap-4">
                                         <div className="text-sm font-medium text-slate-600 bg-slate-200 px-3 py-1 rounded-full">Exibindo: {activeList.length}</div>
-                                        {(appUser.role === 'admin' || appUser.role === 'master') && (
-
-                                        )}
                                     </div>
                                 </div>
                                 <div className="space-y-3">{activeList.length === 0 ? <div className="text-center text-slate-400 py-10">Nenhum pedido pendente ou recente.</div> : activeList.map((req) => (<RequestCard key={req.id} req={req} role={appUser.role} onDelete={deleteRequest} onUpdateStatus={updateStatus} onOutOfStock={handleOutOfStockClick} onSaveStockInfo={handleSaveStockInfo} onApprovePartial={handleApprovePartial} onUpdateReq={handleUpdateReq} onReceiveLogistics={handleReceiveLogistics} onConfirmReceipt={handleConfirmReceipt} currentUser={appUser} />))}</div>
