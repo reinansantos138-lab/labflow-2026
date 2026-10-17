@@ -121,6 +121,7 @@
             const today = new Date();
             return today.getFullYear() === 2026 && today.getMonth() === 9 && today.getDate() >= 16 && today.getDate() <= 31;
         })();
+        const OCTOBER_CAMPAIGN_URL = 'https://sesibahia.sharepoint.com/sites/MaisIntranet/SitePages/Outubro-Rosa-e-Novembro-Azul--exames-de-rastreio-t%C3%AAm-isen%C3%A7%C3%A3o-de-coparticipa%C3%A7%C3%A3o.aspx';
 
         // --- STREAMING_CHUNK:Constantes e Listas... ---
         const SETORES = ['QGI', 'ESP', 'FQA', 'FRASCARIA', 'CRO', 'MIC', 'RECEPÇÃO', 'AMOSTRAGEM', 'AUXILIARES', 'OUTROS', 'GESTÃO', 'COMERCIAL']; 
@@ -239,6 +240,7 @@
         };
 
         const getNextMonday = () => { const d = new Date(); d.setDate(d.getDate() + ((1 + 7 - d.getDay()) % 7)); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
+        const getNextAdministrationWednesday = () => { const d = new Date(); d.setDate(d.getDate() + ((3 + 7 - d.getDay()) % 7)); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
         const formatDate = (isoString) => { if (!isoString) return '-'; const date = new Date(isoString); return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
 
         // --- STREAMING_CHUNK:Contexto de Diálogos Customizados (Substituindo Alert/Confirm)... ---
@@ -405,9 +407,12 @@
                             <p className="mt-3 text-sm leading-6 text-slate-700">Vocês também fazem parte dessa rede de cuidado. Acolham e incentivem esposas, mães, filhas, irmãs, amigas e colegas a priorizar a saúde — com diálogo, apoio e respeito. Cuidar junto faz diferença.</p>
                         </article>
                     </div>
-                    <div className="flex flex-col gap-4 px-5 pb-6 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-                        <p className="max-w-md text-xs leading-5 text-slate-500">Cada pessoa tem uma história e necessidades próprias. Para orientação individual, procure uma equipe de saúde.</p>
-                        <button type="button" onClick={onClose} className="shrink-0 rounded-xl bg-pink-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-pink-200 transition hover:bg-pink-700">Entendi, vamos cuidar juntos</button>
+                    <div className="flex flex-col gap-4 px-5 pb-6 sm:px-7">
+                        <p className="text-xs leading-5 text-slate-500">Cada pessoa tem uma história e necessidades próprias. Para orientação individual, procure uma equipe de saúde.</p>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                            <a href={OCTOBER_CAMPAIGN_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-pink-200 bg-white px-5 py-3 text-sm font-bold text-pink-700 transition hover:bg-pink-50">Ver comunicado da instituição <span aria-hidden="true">↗</span></a>
+                            <button type="button" onClick={onClose} className="shrink-0 rounded-xl bg-pink-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-pink-200 transition hover:bg-pink-700">Entendi, vamos cuidar juntos</button>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -1744,6 +1749,15 @@
         const ReleaseNotesView = () => {
             const notes = [
                 {
+                    version: 'v2.3.0',
+                    date: 'Outubro 2026',
+                    changes: [
+                        'Acesso ao comunicado institucional do Outubro Rosa pelo banner e pela mensagem da campanha.',
+                        'Exibição das próximas datas de pedidos do laboratório (segunda-feira) e da Administração (quarta-feira).',
+                        'Correção de erro de inicialização que podia deixar a página em branco.'
+                    ]
+                },
+                {
                     version: 'v2.2.0',
                     date: 'Outubro 2026',
                     changes: [
@@ -2582,7 +2596,10 @@
                                         <h2 className="mt-1 text-lg font-black leading-tight sm:text-xl">Cuidado que inspira. Prevenção que aproxima.</h2>
                                     </div>
                                 </div>
-                                <button type="button" onClick={() => setShowOctoberInfo(true)} className="shrink-0 rounded-xl border border-white/40 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/20">Ler mensagem da campanha</button>
+                                <div className="flex flex-col gap-2 sm:flex-row">
+                                    <button type="button" onClick={() => setShowOctoberInfo(true)} className="shrink-0 rounded-xl border border-white/40 bg-white/10 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/20">Ler mensagem da campanha</button>
+                                    <a href={OCTOBER_CAMPAIGN_URL} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-pink-700 shadow transition hover:bg-pink-50">Página da instituição <span aria-hidden="true">↗</span></a>
+                                </div>
                             </div>
                         </section>
                     )}
@@ -2616,7 +2633,12 @@
                             <button onClick={() => handleExportPDF('all')} className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold py-2 px-3 rounded transition"><Icons.FileText /><span className="hidden sm:inline">PDF Geral</span></button>
                             <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 p-2 transition"><Icons.LogOut /></button>
                         </div></div>
-                        <div className="bg-blue-600 px-4 py-2 text-center text-xs sm:text-sm font-medium text-white shadow-inner flex justify-center"><span>🧪 Lab: <span className="text-blue-200 font-bold">{getNextMonday()}</span></span></div>
+                        <div className="bg-blue-600 px-4 py-2 text-center text-xs font-medium text-white shadow-inner sm:text-sm">
+                            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+                                <span>🧪 Lab: <span className="font-bold text-blue-200">{getNextMonday()}</span></span>
+                                <span>🏢 Administração: <span className="font-bold text-blue-200">{getNextAdministrationWednesday()}</span></span>
+                            </div>
+                        </div>
                     </header>
                     <main className="max-w-5xl mx-auto px-4 py-6">
                         <div className="flex flex-wrap gap-2 mb-6">
