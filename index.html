@@ -81,7 +81,7 @@
     <script type="text/babel" data-type="module" data-presets="react">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, setDoc, getDoc, where, getDocs, writeBatch, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, setDoc, getDoc, where, getDocs, writeBatch, limit, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // --- CONFIGURAÇÃO FIREBASE ---
         const firebaseConfig = {
@@ -363,6 +363,54 @@
             }
         };
 
+        // Pedidos legados da categoria Escritório passam por transação atômica e têm IDs
+        // determinísticos para que a repetição da mesma confirmação não faça outra baixa.
+        const processOfficeRequestStockTransaction = async (itemName, quantity, user, requestId, notes, sector, unit) => {
+            const qty = Number(quantity);
+            if (!Number.isFinite(qty) || qty <= 0) throw new Error('A quantidade precisa ser maior que zero.');
+            const exactQuery = await getDocs(query(collection(db, 'estoque_lab_2026'), where('name', '==', itemName)));
+            let matching = exactQuery.docs.map(d => ({ id: d.id, ...d.data() })).filter(item => item.category === 'escritorio');
+            if (!matching.length) {
+                const all = await getDocs(collection(db, 'estoque_lab_2026'));
+                matching = all.docs.map(d => ({ id: d.id, ...d.data() })).filter(item => item.category === 'escritorio' && String(item.name || '').trim().toLowerCase() === String(itemName || '').trim().toLowerCase());
+            }
+            if (!matching.length) throw new Error(`Material de Escritório "${itemName}" não encontrado no estoque.`);
+            matching.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+            let remaining = qty;
+            const allocations = [];
+            for (const item of matching) {
+                if (remaining <= 0) break;
+                const available = Math.max(0, Number(item.currentQty || 0));
+                const allocated = Math.min(available, remaining);
+                if (allocated > 0) { allocations.push({ item, quantity: allocated }); remaining -= allocated; }
+            }
+            if (remaining > 0) throw new Error(`Estoque insuficiente de "${itemName}". Disponível: ${qty - remaining}, necessário: ${qty}.`);
+            const now = new Date().toISOString();
+            const refs = allocations.map(({ item }) => ({ itemRef: doc(db, 'estoque_lab_2026', item.id), movementRef: doc(db, 'movimentacoes_estoque_2026', `office_req_${requestId}_${qty}_${item.id}`) }));
+            return runTransaction(db, async (transaction) => {
+                const snapshots = [];
+                for (let i = 0; i < refs.length; i++) snapshots.push({ item: await transaction.get(refs[i].itemRef), movement: await transaction.get(refs[i].movementRef) });
+                if (snapshots.every(entry => entry.movement.exists())) return { duplicate: true };
+                if (snapshots.some(entry => entry.movement.exists())) throw new Error('A movimentação do pedido ficou incompleta; solicite conferência à Administração.');
+                const liveRows = snapshots.map((entry, index) => ({ ...entry, ref: refs[index], allocation: allocations[index] }));
+                if (liveRows.some(row => !row.item.exists() || row.item.data().category !== 'escritorio')) throw new Error('O material foi alterado durante a confirmação do pedido.');
+                const liveAvailable = liveRows.reduce((sum, row) => sum + Number(row.item.data().currentQty || 0), 0);
+                if (liveAvailable < qty) throw new Error(`Estoque insuficiente. Disponível: ${liveAvailable}, necessário: ${qty}.`);
+                let stillToAllocate = qty;
+                for (const row of liveRows) {
+                    const current = Number(row.item.data().currentQty || 0);
+                    const allocated = Math.min(current, stillToAllocate);
+                    if (allocated <= 0) continue;
+                    const after = current - allocated;
+                    transaction.update(row.ref.itemRef, { currentQty: after, updatedAt: now });
+                    transaction.set(row.ref.movementRef, { itemId: row.ref.itemRef.id, itemName: row.item.data().name || itemName, itemCode: row.item.data().internalCode || '', itemCategory: 'escritorio', unit: row.item.data().unit || unit || 'un', type: 'out', quantity: allocated, delta: -allocated, previousQty: current, balanceAfter: after, sector: sector || '', origin: 'pedido_escritorio', requestId, user: user?.name || 'Administração', userRole: user?.role || 'admin', timestamp: now, notes, operationId: `office_req_${requestId}_${qty}` });
+                    stillToAllocate -= allocated;
+                }
+                if (stillToAllocate > 0) throw new Error('Saldo alterado durante a confirmação; atualize a página e tente novamente.');
+                return { duplicate: false };
+            });
+        };
+
         // --- STREAMING_CHUNK:Componente LoginScreen... ---
         const LoginScreen = ({ onLogin }) => {
             const [isRegistering, setIsRegistering] = React.useState(false);
@@ -568,7 +616,7 @@
                         <input className="p-1.5 border rounded text-sm font-bold" value={editData.name} onChange={e => setEditData({...editData, name: e.target.value})} placeholder="Nome" />
                         <select className="p-1.5 border rounded text-xs" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})}>
                             <optgroup label="Almoxarifado"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>
-                            <optgroup label="Adm"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup>
+                            <optgroup label="Adm"><option value="epi">EPI</option><option value="consumivel_adm">Consumível Adm</option></optgroup>
                         </select>
                         <input className="p-1.5 border rounded text-xs" value={editData.location} onChange={e => setEditData({...editData, location: e.target.value})} placeholder="Local" />
                         
@@ -703,8 +751,11 @@
             React.useEffect(() => { if (!req.itemCode && !req.storageLocation && role !== 'lab_tech') { try { const catalog = JSON.parse(localStorage.getItem('labflow_catalog') || '{}'); const savedItem = catalog[req.item.trim().toLowerCase()]; if (savedItem) { if (savedItem.code) { setItemCode(savedItem.code); setHasChanges(true); } if (savedItem.loc) { setStorageLocation(savedItem.loc); setHasChanges(true); } } } catch (e) {} } }, [req.item, role]);
 
             const handleSaveInfo = () => { onSaveStockInfo(req.id, itemCode, storageLocation, req.item); setHasChanges(false); };
-            const handleStatusAction = async (status) => { if (status === 'approved') { try { await processStockTransaction(req.item, req.quantity, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Total (${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onUpdateStatus(req.id, status, req); } catch (error) { alert("Erro de Estoque: " + error.message); } } else { onUpdateStatus(req.id, status, req); } };
-            const handlePartialConfirm = async () => { try { await processStockTransaction(req.item, partialQty, 'out', 'pedido', currentUser, req.id, `Pedido Aprovado Parcial (${partialQty}/${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onApprovePartial(req.id, partialQty, req.quantity, req); setShowPartialInput(false); } catch (error) { alert("Erro de Estoque: " + error.message); } };
+            const processRequestStock = (qty, detail) => req.category === 'escritorio'
+                ? processOfficeRequestStockTransaction(req.item, qty, currentUser, req.id, detail, req.requesterSector, req.unit)
+                : processStockTransaction(req.item, qty, 'out', 'pedido', currentUser, req.id, detail);
+            const handleStatusAction = async (status) => { if (status === 'approved') { try { await processRequestStock(req.quantity, `Pedido Aprovado Total (${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onUpdateStatus(req.id, status, req); } catch (error) { alert("Erro de Estoque: " + error.message); } } else { onUpdateStatus(req.id, status, req); } };
+            const handlePartialConfirm = async () => { try { await processRequestStock(partialQty, `Pedido Aprovado Parcial (${partialQty}/${req.quantity} ${req.unit})`); onSaveStockInfo(req.id, itemCode, storageLocation, req.item); onApprovePartial(req.id, partialQty, req.quantity, req); setShowPartialInput(false); } catch (error) { alert("Erro de Estoque: " + error.message); } };
             const handleSaveEditReq = () => { onUpdateReq(req.id, { item: editItem.trim(), quantity: editQty, unit: editUnit, category: editCategory, requesterSector: editSector }); setIsEditingReq(false); };
             
             const isAdmCategory = CAT_GROUPS.admin.includes(req.category);
@@ -1217,6 +1268,9 @@
             const displayedItems = items.filter(item => {
                 const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
                 if (!matchesSearch) return false;
+
+                // Escritório agora é operado somente pelo módulo dedicado, que usa transações.
+                if ((userRole === 'admin' || userRole === 'master') && item.category === 'escritorio') return false;
                 
                 if (userRole === 'admin' && !CAT_GROUPS.admin.includes(item.category)) return false;
                 if (userRole === 'logistics' && !CAT_GROUPS.logistics.includes(item.category)) return false;
@@ -1277,6 +1331,7 @@
                     <div className="flex gap-2 mb-6 overflow-x-auto pb-2 border-b border-slate-200">
                         {['Todos', 'OK', 'Atenção', 'Crítico'].map(tab => {
                             let count = items.filter(item => {
+                                if ((userRole === 'admin' || userRole === 'master') && item.category === 'escritorio') return false;
                                 if (userRole === 'admin' && !CAT_GROUPS.admin.includes(item.category)) return false;
                                 if (userRole === 'logistics' && !CAT_GROUPS.logistics.includes(item.category)) return false;
                                 if (tab === 'Todos') return true;
@@ -1304,7 +1359,7 @@
                                     <input className="p-2 border rounded text-sm outline-none" placeholder="Nome do Item" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} required />
                                     <select className="p-2 border rounded text-sm outline-none" value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})}>
                                         {(userRole === 'master' || userRole === 'logistics') && <optgroup label="Almoxarifado (Logística)"><option value="reagente">Reagente</option><option value="materiais">Materiais</option><option value="consumivel_log">Consumível Lab</option></optgroup>}
-                                        {(userRole === 'master' || userRole === 'admin') && <optgroup label="Adm (Escritório)"><option value="epi">EPI</option><option value="escritorio">Escritório</option><option value="consumivel_adm">Consumível Adm</option></optgroup>}
+                                        {(userRole === 'master' || userRole === 'admin') && <optgroup label="Administração"><option value="epi">EPI</option><option value="consumivel_adm">Consumível Adm</option></optgroup>}
                                     </select>
                                     <input className="p-2 border rounded text-sm outline-none" placeholder="Local (ex: A1)" value={newItem.location} onChange={e => setNewItem({...newItem, location: e.target.value})} />
                                     <select className="p-2 border rounded text-sm outline-none" value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})}><option value="un">un</option><option value="cx">cx</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">pct</option><option value="FR">FR</option></select>
@@ -1377,6 +1432,401 @@
                             ))
                         )}
                     </div>
+                </div>
+            );
+        };
+
+        const OFFICE_MOVEMENTS = 'movimentacoes_estoque_2026';
+        const OFFICE_DISTRIBUTIONS = 'distribuicoes_escritorio_2026';
+        const OFFICE_UNITS = ['un', 'pacote', 'caixa', 'resma', 'rolo', 'cx', 'pct', 'kit', 'bloco', 'folha', 'par', 'L', 'kg', 'outro'];
+        const officeCodeKey = (value) => String(value || '').trim().toUpperCase();
+        const officeItemCode = (item) => item?.internalCode || item?.itemCode || item?.code || '';
+        const officeMovementLabel = (type, direction) => type === 'in' ? 'Entrada' : type === 'out' ? 'Saída' : type === 'return' ? 'Devolução' : `Ajuste (${direction === 'subtract' ? 'redução' : 'aumento'})`;
+        const officeNewCode = () => `ESC-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+        const officeDateLabel = (value) => {
+            if (!value) return '—';
+            const date = value?.toDate ? value.toDate() : new Date(value);
+            return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('pt-BR');
+        };
+
+        const OfficeModuleView = ({ currentUser }) => {
+            const { showAlert, showConfirm } = React.useContext(DialogContext);
+            const [items, setItems] = React.useState([]);
+            const [movements, setMovements] = React.useState([]);
+            const [distributions, setDistributions] = React.useState([]);
+            const [loading, setLoading] = React.useState(true);
+            const [activeTab, setActiveTab] = React.useState('overview');
+            const [searchTerm, setSearchTerm] = React.useState('');
+            const [typeFilter, setTypeFilter] = React.useState('all');
+            const [sectorFilter, setSectorFilter] = React.useState('all');
+            const [responsibleFilter, setResponsibleFilter] = React.useState('');
+            const [statusFilter, setStatusFilter] = React.useState('all');
+            const [periodStart, setPeriodStart] = React.useState('');
+            const [periodEnd, setPeriodEnd] = React.useState('');
+            const [reportType, setReportType] = React.useState('stock');
+            const [formOpen, setFormOpen] = React.useState(false);
+            const [editingId, setEditingId] = React.useState(null);
+            const [saving, setSaving] = React.useState(false);
+            const [movementSaving, setMovementSaving] = React.useState(false);
+            const [distributionSaving, setDistributionSaving] = React.useState(false);
+            const [form, setForm] = React.useState({ name: '', internalCode: '', description: '', unit: 'un', unitOther: '', initialQty: '', minQty: '', maxQty: '', location: '', marca: '', notes: '' });
+            const [movementForm, setMovementForm] = React.useState({ itemId: '', type: 'in', quantity: '', direction: 'add', sector: '', notes: '' });
+            const [distributionForm, setDistributionForm] = React.useState({ itemId: '', quantity: '', sector: '', notes: '' });
+            const [deliveryDrafts, setDeliveryDrafts] = React.useState({});
+            const [selectedDetails, setSelectedDetails] = React.useState(null);
+            const [historyItemId, setHistoryItemId] = React.useState('all');
+            const [reportBusy, setReportBusy] = React.useState(false);
+
+            React.useEffect(() => {
+                const unsubItems = onSnapshot(query(collection(db, 'estoque_lab_2026'), orderBy('name')), (snapshot) => {
+                    setItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(item => item.category === 'escritorio'));
+                    setLoading(false);
+                }, (error) => { setLoading(false); showAlert(`Não foi possível carregar os materiais de Escritório: ${error.message}`); });
+                const unsubMovements = onSnapshot(query(collection(db, OFFICE_MOVEMENTS), orderBy('timestamp', 'desc')), (snapshot) => {
+                    setMovements(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+                }, (error) => showAlert(`Não foi possível carregar o histórico de movimentações: ${error.message}`));
+                const unsubDistributions = onSnapshot(query(collection(db, OFFICE_DISTRIBUTIONS), orderBy('requestedAt', 'desc')), (snapshot) => {
+                    setDistributions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+                }, (error) => showAlert(`Não foi possível carregar as distribuições: ${error.message}`));
+                return () => { unsubItems(); unsubMovements(); unsubDistributions(); };
+            }, []);
+
+            const itemById = React.useMemo(() => Object.fromEntries(items.map(item => [item.id, item])), [items]);
+            const officeMovements = React.useMemo(() => movements.filter(m => m.itemCategory === 'escritorio' || itemById[m.itemId]?.category === 'escritorio'), [movements, itemById]);
+            const inPeriod = React.useCallback((value) => {
+                const date = value?.toDate ? value.toDate() : new Date(value || 0);
+                if (Number.isNaN(date.getTime())) return false;
+                const day = date.toISOString().slice(0, 10);
+                return (!periodStart || day >= periodStart) && (!periodEnd || day <= periodEnd);
+            }, [periodStart, periodEnd]);
+            const filteredMovements = React.useMemo(() => officeMovements.filter(m => {
+                const item = itemById[m.itemId] || {};
+                const text = `${m.itemName || item.name || ''} ${m.itemCode || officeItemCode(item) || ''} ${m.sector || ''} ${m.user || ''} ${m.notes || ''}`.toLowerCase();
+                return inPeriod(m.timestamp) && (typeFilter === 'all' || m.type === typeFilter) && (sectorFilter === 'all' || m.sector === sectorFilter) && (!responsibleFilter || String(m.user || '').toLowerCase().includes(responsibleFilter.toLowerCase())) && (historyItemId === 'all' || m.itemId === historyItemId) && (!searchTerm || text.includes(searchTerm.toLowerCase()));
+            }), [officeMovements, itemById, inPeriod, typeFilter, sectorFilter, responsibleFilter, historyItemId, searchTerm]);
+            const filteredDistributions = React.useMemo(() => distributions.filter(d => {
+                const text = `${d.itemName || ''} ${d.itemCode || ''} ${d.sector || ''} ${d.responsible || d.requesterName || ''} ${d.notes || ''}`.toLowerCase();
+                return inPeriod(d.requestedAt) && (sectorFilter === 'all' || d.sector === sectorFilter) && (statusFilter === 'all' || d.status === statusFilter) && (!responsibleFilter || String(d.responsible || d.requesterName || '').toLowerCase().includes(responsibleFilter.toLowerCase())) && (historyItemId === 'all' || d.itemId === historyItemId) && (!searchTerm || text.includes(searchTerm.toLowerCase()));
+            }), [distributions, inPeriod, sectorFilter, statusFilter, responsibleFilter, historyItemId, searchTerm]);
+
+            const getStockStatus = (item) => {
+                const current = Number(item.currentQty || 0), min = Number(item.minQty || 0), max = Number(item.maxQty || 0);
+                if (current <= 0) return { label: 'Zerado', style: 'bg-red-100 text-red-700' };
+                if (max > 0 && current > max) return { label: 'Acima do máximo', style: 'bg-purple-100 text-purple-700' };
+                if (min > 0 && current < min) return { label: 'Abaixo do mínimo', style: 'bg-red-100 text-red-700' };
+                if (min > 0 && current <= min * 1.2) return { label: 'Próximo do mínimo', style: 'bg-yellow-100 text-yellow-800' };
+                return { label: 'Normal', style: 'bg-green-100 text-green-700' };
+            };
+            const activeItems = items.filter(item => !item.archivedAt);
+            const zeroCount = activeItems.filter(item => Number(item.currentQty || 0) <= 0).length;
+            const criticalItems = activeItems.filter(item => Number(item.minQty || 0) > 0 && Number(item.currentQty || 0) < Number(item.minQty || 0));
+            const lowStockItems = activeItems.filter(item => Number(item.currentQty || 0) <= 0 || (Number(item.minQty || 0) > 0 && Number(item.currentQty || 0) < Number(item.minQty || 0)));
+            const filteredItems = activeItems.filter(item => !searchTerm || `${item.name} ${officeItemCode(item)} ${item.description || ''} ${item.location || ''}`.toLowerCase().includes(searchTerm.toLowerCase()));
+            const consumedMovements = officeMovements.filter(m => m.type === 'out' && inPeriod(m.timestamp));
+            const currentMonth = new Date().toISOString().slice(0, 7);
+            const previousDate = new Date(); previousDate.setMonth(previousDate.getMonth() - 1);
+            const previousMonth = previousDate.toISOString().slice(0, 7);
+            const currentMonthOut = officeMovements.filter(m => m.type === 'out' && String(m.timestamp || '').slice(0, 7) === currentMonth);
+            const previousMonthOut = officeMovements.filter(m => m.type === 'out' && String(m.timestamp || '').slice(0, 7) === previousMonth);
+            const totalsByUnit = (rows) => rows.reduce((totals, row) => {
+                const unit = row.unit || itemById[row.itemId]?.unit || 'un';
+                totals[unit] = (totals[unit] || 0) + Number(row.quantity || 0);
+                return totals;
+            }, {});
+            const describeUnits = (totals) => Object.entries(totals).map(([unit, qty]) => `${qty} ${unit}`).join(' • ') || '0';
+            const currentMonthByUnit = totalsByUnit(currentMonthOut), previousMonthByUnit = totalsByUnit(previousMonthOut);
+            const monthComparison = [...new Set([...Object.keys(currentMonthByUnit), ...Object.keys(previousMonthByUnit)])].map(unit => {
+                const current = currentMonthByUnit[unit] || 0, previous = previousMonthByUnit[unit] || 0;
+                const change = previous > 0 ? ` (${((current - previous) / previous * 100).toFixed(1)}%)` : previous === 0 && current > 0 ? ' (sem base anterior)' : '';
+                return `${unit}: ${current} vs ${previous}${change}`;
+            }).join(' • ') || 'Sem saídas registradas';
+            const rankedUsage = React.useMemo(() => {
+                const groups = {};
+                officeMovements.filter(m => m.type === 'out' && inPeriod(m.timestamp)).forEach(m => {
+                    const item = itemById[m.itemId] || {};
+                    const unit = m.unit || item.unit || 'un';
+                    const key = `${m.itemId || m.itemName}|${unit}`;
+                    if (!groups[key]) groups[key] = { itemId: m.itemId, name: m.itemName || item.name || 'Material', code: m.itemCode || officeItemCode(item), unit, total: 0, sectors: {}, months: {} };
+                    const qty = Number(m.quantity || 0);
+                    groups[key].total += qty;
+                    if (m.sector) groups[key].sectors[m.sector] = (groups[key].sectors[m.sector] || 0) + qty;
+                    const month = String(m.timestamp || '').slice(0, 7);
+                    if (month) groups[key].months[month] = (groups[key].months[month] || 0) + qty;
+                });
+                return Object.values(groups).sort((a, b) => b.total - a.total);
+            }, [officeMovements, itemById, inPeriod]);
+            const sectorUsage = React.useMemo(() => {
+                const totals = {};
+                officeMovements.filter(m => m.type === 'out' && inPeriod(m.timestamp)).forEach(m => {
+                    if (!m.sector) return;
+                    const unit = m.unit || itemById[m.itemId]?.unit || 'un';
+                    if (!totals[m.sector]) totals[m.sector] = { sector: m.sector, units: {}, movements: 0 };
+                    totals[m.sector].units[unit] = (totals[m.sector].units[unit] || 0) + Number(m.quantity || 0);
+                    totals[m.sector].movements += 1;
+                });
+                return Object.values(totals).sort((a, b) => b.movements - a.movements);
+            }, [officeMovements, itemById, inPeriod]);
+            const monthlyUsage = React.useMemo(() => {
+                const totals = {};
+                officeMovements.filter(m => m.type === 'out' && inPeriod(m.timestamp)).forEach(m => {
+                    const month = String(m.timestamp || '').slice(0, 7); if (!month) return;
+                    const key = `${month}|${m.itemId || m.itemName}|${m.unit || itemById[m.itemId]?.unit || 'un'}`;
+                    if (!totals[key]) totals[key] = { month, item: m.itemName || itemById[m.itemId]?.name || 'Material', unit: m.unit || itemById[m.itemId]?.unit || 'un', quantity: 0 };
+                    totals[key].quantity += Number(m.quantity || 0);
+                });
+                return Object.values(totals).sort((a, b) => b.month.localeCompare(a.month));
+            }, [officeMovements, itemById, inPeriod]);
+            const lastMovementFor = (itemId) => officeMovements.filter(m => m.itemId === itemId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+            const staleItems = officeMovements.length >= 2 ? activeItems.filter(item => {
+                const last = lastMovementFor(item.id);
+                return last && (Date.now() - new Date(last.timestamp).getTime()) > 90 * 24 * 60 * 60 * 1000;
+            }) : [];
+            const durationFor = (itemId) => {
+                const outs = officeMovements.filter(m => m.itemId === itemId && m.type === 'out' && Number(m.quantity || 0) > 0);
+                const months = [...new Set(outs.map(m => String(m.timestamp || '').slice(0, 7)).filter(Boolean))].sort();
+                if (months.length < 2) return null;
+                const start = new Date(`${months[0]}-01T00:00:00`), now = new Date();
+                const elapsedMonths = Math.max(2, (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth() + 1);
+                const average = outs.reduce((total, m) => total + Number(m.quantity || 0), 0) / elapsedMonths;
+                return average > 0 ? Number(itemById[itemId]?.currentQty || 0) / average : null;
+            };
+
+            const openNewItem = () => { setEditingId(null); setForm({ name: '', internalCode: officeNewCode(), description: '', unit: 'un', unitOther: '', initialQty: '', minQty: '', maxQty: '', location: '', marca: '', notes: '' }); setFormOpen(true); };
+            const openEditItem = (item) => { const existingUnit = item.unit || 'un'; setEditingId(item.id); setForm({ name: item.name || '', internalCode: officeItemCode(item), description: item.description || '', unit: OFFICE_UNITS.includes(existingUnit) ? existingUnit : 'outro', unitOther: OFFICE_UNITS.includes(existingUnit) ? '' : existingUnit, initialQty: '', minQty: item.minQty ?? '', maxQty: item.maxQty ?? '', location: item.location || '', marca: item.marca || item.brand || item.manufacturer || '', notes: item.notes || '' }); setFormOpen(true); };
+            const saveItem = async (event) => {
+                event.preventDefault();
+                const name = form.name.trim(), code = officeCodeKey(form.internalCode || officeNewCode()), unit = form.unit === 'outro' ? form.unitOther.trim() : form.unit;
+                const amount = Number(form.initialQty || 0), min = Number(form.minQty || 0), max = form.maxQty === '' || Number(form.maxQty) === 0 ? null : Number(form.maxQty);
+                if (!name || !code || !/^[A-Z0-9._-]+$/.test(code)) return showAlert('Informe nome e código interno (use letras, números, ponto, hífen ou sublinhado).');
+                if (!unit) return showAlert('Informe a unidade de medida.');
+                if ([amount, min, max].some(v => v !== null && (!Number.isFinite(v) || v < 0))) return showAlert('As quantidades devem ser números iguais ou maiores que zero.');
+                if (max !== null && max > 0 && max < min) return showAlert('O estoque máximo não pode ser menor que o mínimo.');
+                if (items.some(item => item.id !== editingId && officeCodeKey(item.internalCode) === code)) return showAlert('Este código interno já está cadastrado.');
+                const now = new Date().toISOString();
+                const data = { name, internalCode: code, description: form.description.trim(), unit, minQty: min, maxQty: max, location: form.location.trim(), marca: form.marca.trim(), notes: form.notes.trim(), category: 'escritorio', updatedAt: now };
+                setSaving(true);
+                try {
+                    if (editingId) {
+                        const legacyItem = itemById[editingId] || {};
+                        await updateDoc(doc(db, 'estoque_lab_2026', editingId), { ...data, createdAt: legacyItem.createdAt || now, createdAtMigratedFromLegacy: !legacyItem.createdAt });
+                        logAudit('escritorio_material_editado', { itemId: editingId, code, name }, currentUser);
+                    } else {
+                        const itemRef = doc(db, 'estoque_lab_2026', `office_${code}`);
+                        const initialMovementRef = doc(db, OFFICE_MOVEMENTS, `initial_${itemRef.id}`);
+                        await runTransaction(db, async (transaction) => {
+                            const itemSnap = await transaction.get(itemRef);
+                            const movementSnap = await transaction.get(initialMovementRef);
+                            if (itemSnap.exists()) throw new Error('Já existe um documento com este código. Escolha outro código interno.');
+                            transaction.set(itemRef, { ...data, currentQty: amount, createdAt: now, createdBy: currentUser?.name || 'Administração' });
+                            if (amount > 0) transaction.set(initialMovementRef, { itemId: itemRef.id, itemName: name, itemCode: code, itemCategory: 'escritorio', unit, type: 'in', quantity: amount, previousQty: 0, balanceAfter: amount, sector: '', origin: 'escritorio_module', user: currentUser?.name || 'Administração', userRole: currentUser?.role || 'admin', timestamp: now, notes: 'Saldo inicial no cadastro', operationId: initialMovementRef.id });
+                        });
+                        logAudit('escritorio_material_criado', { itemId: itemRef.id, code, name, initialQty: amount }, currentUser);
+                    }
+                    setFormOpen(false); setEditingId(null); showAlert(editingId ? 'Material atualizado.' : 'Material cadastrado.');
+                } catch (error) { showAlert(`Não foi possível salvar o material: ${error.message}`); }
+                finally { setSaving(false); }
+            };
+
+            const submitMovement = async (event) => {
+                event.preventDefault();
+                const qty = Number(movementForm.quantity);
+                const item = itemById[movementForm.itemId];
+                if (!item || item.category !== 'escritorio') return showAlert('Selecione um material de Escritório válido.');
+                if (!Number.isFinite(qty) || qty <= 0) return showAlert('A quantidade movimentada precisa ser maior que zero.');
+                if (movementForm.type === 'adjustment' && !movementForm.notes.trim()) return showAlert('Informe uma justificativa para o ajuste.');
+                const movementRef = doc(collection(db, OFFICE_MOVEMENTS));
+                const now = new Date().toISOString();
+                setMovementSaving(true);
+                try {
+                    const result = await runTransaction(db, async (transaction) => {
+                        const movementSnap = await transaction.get(movementRef);
+                        const itemRef = doc(db, 'estoque_lab_2026', item.id);
+                        const itemSnap = await transaction.get(itemRef);
+                        if (movementSnap.exists()) return { duplicate: true };
+                        if (!itemSnap.exists() || itemSnap.data().category !== 'escritorio') throw new Error('O material não está mais disponível no estoque.');
+                        const current = Number(itemSnap.data().currentQty || 0);
+                        const isReduction = movementForm.type === 'out' || (movementForm.type === 'adjustment' && movementForm.direction === 'subtract');
+                        const next = current + (isReduction ? -qty : qty);
+                        if (next < 0) throw new Error(`Saldo insuficiente. Disponível: ${current} ${item.unit || 'un'}.`);
+                        transaction.update(itemRef, { currentQty: next, updatedAt: now });
+                        transaction.set(movementRef, { itemId: item.id, itemName: item.name, itemCode: officeItemCode(item), itemCategory: 'escritorio', unit: item.unit || 'un', type: movementForm.type, direction: movementForm.type === 'adjustment' ? movementForm.direction : '', quantity: qty, delta: isReduction ? -qty : qty, previousQty: current, balanceAfter: next, sector: movementForm.sector || '', origin: 'escritorio_module', user: currentUser?.name || 'Administração', userRole: currentUser?.role || 'admin', timestamp: now, notes: movementForm.notes.trim(), operationId: movementRef.id });
+                        return { duplicate: false };
+                    });
+                    setMovementForm({ itemId: '', type: 'in', quantity: '', direction: 'add', sector: '', notes: '' });
+                    showAlert(result.duplicate ? 'Esta operação já estava registrada.' : 'Movimentação registrada e saldo atualizado.');
+                } catch (error) { showAlert(`Não foi possível registrar a movimentação: ${error.message}`); }
+                finally { setMovementSaving(false); }
+            };
+
+            const createDistribution = async (event) => {
+                event.preventDefault();
+                const item = itemById[distributionForm.itemId], qty = Number(distributionForm.quantity);
+                if (!item || item.category !== 'escritorio') return showAlert('Selecione um material de Escritório válido.');
+                if (!Number.isFinite(qty) || qty <= 0 || !distributionForm.sector) return showAlert('Informe quantidade solicitada e setor.');
+                setDistributionSaving(true);
+                try {
+                    await addDoc(collection(db, OFFICE_DISTRIBUTIONS), { itemId: item.id, itemName: item.name, itemCode: officeItemCode(item), itemCategory: 'escritorio', unit: item.unit || 'un', qtyRequested: qty, qtyDelivered: 0, sector: distributionForm.sector, requestedAt: new Date().toISOString(), deliveredAt: null, requesterName: currentUser?.name || '', requesterUID: currentUser?.uid || '', responsible: '', receivedBy: '', status: 'pendente', notes: distributionForm.notes.trim(), createdBy: currentUser?.name || '' });
+                    setDistributionForm({ itemId: '', quantity: '', sector: '', notes: '' });
+                    showAlert('Solicitação registrada. O estoque será baixado somente no atendimento.');
+                } catch (error) { showAlert(`Não foi possível registrar a solicitação: ${error.message}`); }
+                finally { setDistributionSaving(false); }
+            };
+
+            const fulfillDistribution = async (distribution) => {
+                const qty = Number(deliveryDrafts[distribution.id]?.quantity);
+                const receivedBy = String(deliveryDrafts[distribution.id]?.receivedBy || '').trim();
+                if (!Number.isFinite(qty) || qty <= 0) return showAlert('A quantidade entregue precisa ser maior que zero.');
+                const movementRef = doc(collection(db, OFFICE_MOVEMENTS));
+                const now = new Date().toISOString();
+                setDistributionSaving(true);
+                try {
+                    const result = await runTransaction(db, async (transaction) => {
+                        const movementSnap = await transaction.get(movementRef);
+                        const distributionRef = doc(db, OFFICE_DISTRIBUTIONS, distribution.id);
+                        const distributionSnap = await transaction.get(distributionRef);
+                        const itemRef = doc(db, 'estoque_lab_2026', distribution.itemId);
+                        const itemSnap = await transaction.get(itemRef);
+                        if (movementSnap.exists()) return { duplicate: true };
+                        if (!distributionSnap.exists() || !itemSnap.exists()) throw new Error('A solicitação ou o material não está disponível.');
+                        const liveDistribution = distributionSnap.data(), liveItem = itemSnap.data();
+                        if (liveDistribution.status === 'cancelado' || liveDistribution.status === 'atendido') throw new Error('Esta solicitação já foi encerrada.');
+                        const remaining = Number(liveDistribution.qtyRequested || 0) - Number(liveDistribution.qtyDelivered || 0);
+                        if (qty > remaining) throw new Error(`Quantidade acima do saldo pendente (${remaining}).`);
+                        const current = Number(liveItem.currentQty || 0), next = current - qty;
+                        if (liveItem.category !== 'escritorio' || next < 0) throw new Error(`Saldo insuficiente. Disponível: ${current} ${liveItem.unit || 'un'}.`);
+                        const delivered = Number(liveDistribution.qtyDelivered || 0) + qty;
+                        const nextStatus = delivered >= Number(liveDistribution.qtyRequested || 0) ? 'atendido' : 'parcialmente_atendido';
+                        transaction.update(itemRef, { currentQty: next, updatedAt: now });
+                        transaction.update(distributionRef, { qtyDelivered: delivered, deliveredAt: now, responsible: currentUser?.name || 'Administração', receivedBy, status: nextStatus });
+                        transaction.set(movementRef, { itemId: distribution.itemId, itemName: liveItem.name, itemCode: officeItemCode(liveItem) || distribution.itemCode || '', itemCategory: 'escritorio', unit: liveItem.unit || distribution.unit || 'un', type: 'out', quantity: qty, delta: -qty, previousQty: current, balanceAfter: next, sector: liveDistribution.sector || '', origin: 'distribuicao_escritorio', distributionId: distribution.id, user: currentUser?.name || 'Administração', userRole: currentUser?.role || 'admin', timestamp: now, notes: `${liveDistribution.notes || ''}${receivedBy ? ` | Recebido por: ${receivedBy}` : ''}`.trim(), operationId: movementRef.id });
+                        return { duplicate: false, nextStatus };
+                    });
+                    setDeliveryDrafts(prev => ({ ...prev, [distribution.id]: { quantity: '', receivedBy: '' } }));
+                    showAlert(result.duplicate ? 'Esta entrega já estava registrada.' : result.nextStatus === 'atendido' ? 'Entrega concluída e estoque atualizado.' : 'Entrega parcial registrada; o saldo pendente foi preservado.');
+                } catch (error) { showAlert(`Não foi possível confirmar a entrega: ${error.message}`); }
+                finally { setDistributionSaving(false); }
+            };
+            const cancelDistribution = async (distribution) => {
+                if (distribution.status === 'atendido' || distribution.status === 'cancelado') return;
+                showConfirm('Cancelar o saldo pendente desta solicitação? As entregas já registradas continuarão no histórico.', async () => {
+                    try { await updateDoc(doc(db, OFFICE_DISTRIBUTIONS, distribution.id), { status: 'cancelado', cancelledAt: new Date().toISOString(), cancelledBy: currentUser?.name || 'Administração' }); showAlert('Solicitação encerrada como cancelada. Baixas já realizadas continuam no histórico.'); }
+                    catch (error) { showAlert(`Não foi possível cancelar a solicitação: ${error.message}`); }
+                });
+            };
+
+            const movementTypes = { in: 'Entrada', out: 'Saída', adjustment: 'Ajuste', return: 'Devolução' };
+            const historyRows = [
+                ...filteredMovements.map(m => ({ id: `mov_${m.id}`, kind: 'Movimentação', date: m.timestamp, itemId: m.itemId, itemName: m.itemName, itemCode: m.itemCode || officeItemCode(itemById[m.itemId]), quantity: m.quantity, unit: m.unit || itemById[m.itemId]?.unit || 'un', sector: m.sector || '—', responsible: m.user || '—', type: officeMovementLabel(m.type, m.direction), status: 'confirmada', notes: m.notes || '', details: m })),
+                ...filteredDistributions.map(d => ({ id: `dist_${d.id}`, kind: 'Distribuição', date: d.requestedAt, itemId: d.itemId, itemName: d.itemName, itemCode: d.itemCode || '', quantity: `${Number(d.qtyDelivered || 0)} / ${Number(d.qtyRequested || 0)}`, unit: d.unit || 'un', sector: d.sector || '—', responsible: d.responsible || d.requesterName || '—', type: 'Solicitação', status: d.status === 'parcialmente_atendido' ? 'Parcialmente atendido' : d.status, notes: d.notes || '', details: d }))
+            ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            const reportRows = React.useMemo(() => {
+                if (reportType === 'stock') return filteredItems.map(i => ({ codigo: officeItemCode(i), material: i.name, descricao: i.description || '', unidade: i.unit || 'un', saldo: Number(i.currentQty || 0), minimo: Number(i.minQty || 0), maximo: i.maxQty ?? '', local: i.location || '', marca: i.marca || i.brand || i.manufacturer || '', situacao: getStockStatus(i).label }));
+                if (reportType === 'critical') return lowStockItems.map(i => ({ codigo: officeItemCode(i), material: i.name, unidade: i.unit || 'un', saldo: Number(i.currentQty || 0), minimo: Number(i.minQty || 0), maximo: i.maxQty ?? '', reposicao: Number(i.maxQty || 0) > 0 ? Math.max(0, Number(i.maxQty) - Number(i.currentQty || 0)) : 'Configurar estoque máximo' }));
+                if (reportType === 'history') return filteredMovements.map(m => ({ data: officeDateLabel(m.timestamp), codigo: m.itemCode || '', material: m.itemName || '', quantidade: m.quantity, unidade: m.unit || 'un', setor: m.sector || '', tipo: officeMovementLabel(m.type, m.direction), responsavel: m.user || '', saldoAnterior: m.previousQty ?? '', saldoPosterior: m.balanceAfter ?? '', observacoes: m.notes || '' }));
+                if (reportType === 'distribution') return filteredDistributions.map(d => ({ solicitacao: d.id, material: d.itemName, codigo: d.itemCode || '', solicitado: d.qtyRequested, entregue: d.qtyDelivered || 0, pendente: Math.max(0, Number(d.qtyRequested || 0) - Number(d.qtyDelivered || 0)), unidade: d.unit || 'un', setor: d.sector, solicitante: d.requesterName || '', responsavel: d.responsible || '', recebidoPor: d.receivedBy || '', status: d.status, solicitadaEm: officeDateLabel(d.requestedAt), entregueEm: officeDateLabel(d.deliveredAt), observacoes: d.notes || '' }));
+                if (reportType === 'monthly') return monthlyUsage.map(row => ({ mes: row.month, material: row.item, unidade: row.unit, quantidade: row.quantity }));
+                if (reportType === 'ranking') return rankedUsage.map((row, index) => ({ posicao: index + 1, codigo: row.code, material: row.name, unidade: row.unit, consumido: row.total, setorPrincipal: Object.entries(row.sectors).sort((a, b) => b[1] - a[1])[0]?.[0] || '', setorPrincipalQtd: Math.max(0, ...Object.values(row.sectors)) }));
+                return lowStockItems.map(i => ({ codigo: officeItemCode(i), material: i.name, saldo: Number(i.currentQty || 0), minimo: Number(i.minQty || 0), maximo: i.maxQty ?? '', reposicao: Number(i.maxQty || 0) > 0 ? Math.max(0, Number(i.maxQty) - Number(i.currentQty || 0)) : 'Configurar estoque máximo' }));
+            }, [reportType, filteredItems, lowStockItems, filteredMovements, filteredDistributions, monthlyUsage, rankedUsage]);
+            const reportNames = { stock: 'Posição atual do estoque', critical: 'Materiais abaixo do mínimo', history: 'Histórico de entradas e saídas', distribution: 'Distribuição por setor', monthly: 'Consumo mensal', ranking: 'Ranking de consumo', restock: 'Sugestões de reposição' };
+            const exportOfficePDF = () => {
+                try {
+                    const JsPDF = window.jspdf?.jsPDF;
+                    if (!JsPDF) throw new Error('Biblioteca PDF indisponível. Recarregue a página e tente novamente.');
+                    const pdf = new JsPDF({ orientation: 'landscape' });
+                    pdf.setFontSize(16); pdf.text(`LabFlow 2026 | Escritório`, 14, 16);
+                    pdf.setFontSize(10); pdf.text(`${reportNames[reportType]} | Período: ${periodStart || 'início'} a ${periodEnd || 'hoje'} | Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 23);
+                    const columns = reportRows.length ? Object.keys(reportRows[0]) : ['Resultado'];
+                    const body = reportRows.length ? reportRows.map(row => columns.map(key => String(row[key] ?? ''))) : [['Nenhum registro para os filtros selecionados.']];
+                    pdf.autoTable({ head: [columns], body, startY: 29, styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [37, 99, 235] } });
+                    pdf.save(`LabFlow_Escritorio_${reportType}_${new Date().toISOString().slice(0, 10)}.pdf`);
+                } catch (error) { showAlert(`Erro ao gerar PDF: ${error.message}`); }
+            };
+            const exportOfficeExcel = async () => {
+                setReportBusy(true);
+                try {
+                    if (!window.ExcelJS || !window.saveAs) throw new Error('Biblioteca Excel indisponível. Recarregue a página e tente novamente.');
+                    const workbook = new ExcelJS.Workbook(); workbook.creator = currentUser?.name || 'LabFlow';
+                    const sheet = workbook.addWorksheet('Escritório');
+                    sheet.addRow([`LabFlow 2026 | ${reportNames[reportType]}`]);
+                    sheet.addRow([`Período: ${periodStart || 'início'} a ${periodEnd || 'hoje'} | Gerado em: ${new Date().toLocaleString('pt-BR')}`]);
+                    if (reportRows.length) {
+                        const columns = Object.keys(reportRows[0]);
+                        sheet.addRow(columns); reportRows.forEach(row => sheet.addRow(columns.map(key => row[key] ?? '')));
+                        sheet.getRow(3).font = { bold: true, color: { argb: 'FFFFFFFF' } }; sheet.getRow(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+                        sheet.columns = columns.map((key, index) => ({ key, width: Math.min(38, Math.max(14, key.length + 4, ...reportRows.slice(0, 100).map(row => String(row[key] ?? '').length + 2))) }));
+                        sheet.views = [{ state: 'frozen', ySplit: 3 }];
+                    } else sheet.addRow(['Nenhum registro para os filtros selecionados.']);
+                    const buffer = await workbook.xlsx.writeBuffer();
+                    window.saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `LabFlow_Escritorio_${reportType}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+                } catch (error) { showAlert(`Erro ao gerar Excel: ${error.message}`); }
+                finally { setReportBusy(false); }
+            };
+
+            if (loading) return <div className="text-center py-10 text-slate-500">Carregando materiais de Escritório...</div>;
+            const officeTabs = [['overview', 'Visão geral'], ['catalog', 'Materiais'], ['stock', 'Estoque e movimentações'], ['distribution', 'Solicitações e distribuição'], ['history', 'Histórico de consumo'], ['reports', 'Relatórios']];
+            return (
+                <div className="animate-in fade-in space-y-5">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div><h2 className="text-2xl font-black text-slate-800">📎 Escritório</h2><p className="text-sm text-slate-500">Estoque, entregas por setor e consumo de materiais administrativos.</p></div>
+                        <div className="relative w-full md:w-80"><input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar material, código, setor..." className="w-full p-2.5 pl-4 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-2 border-b border-slate-200">{officeTabs.map(([key, label]) => <button key={key} onClick={() => { setActiveTab(key); setSelectedDetails(null); }} className={`px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap border ${activeTab === key ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>{label}</button>)}</div>
+
+                    {activeTab === 'overview' && <div className="space-y-5">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            {[['Materiais ativos', activeItems.length, 'bg-blue-50 text-blue-700'], ['Estoque crítico', criticalItems.length, 'bg-red-50 text-red-700'], ['Estoque zerado', zeroCount, 'bg-orange-50 text-orange-700'], ['Saídas no período', describeUnits(totalsByUnit(consumedMovements)), 'bg-green-50 text-green-700']].map(([label, value, style]) => <div key={label} className={`${style} rounded-xl border border-slate-200 p-4`}><div className="text-xs font-bold uppercase opacity-75">{label}</div><div className="text-lg font-black mt-1">{value}</div></div>)}
+                        </div>
+                        <div className="bg-white rounded-xl border border-slate-200 p-4"><div className="flex flex-col sm:flex-row sm:justify-between gap-2 mb-3"><h3 className="font-bold text-slate-800">Indicadores do consumo</h3><div className="text-xs text-slate-500">Este mês vs. anterior por unidade: {monthComparison}</div></div>
+                            {rankedUsage.length ? <div className="grid lg:grid-cols-2 gap-5"><div><h4 className="text-xs font-bold uppercase text-slate-500 mb-2">Materiais mais consumidos</h4>{rankedUsage.slice(0, 6).map((row, i) => <div key={`${row.itemId}_${row.unit}`} className="flex justify-between py-2 border-b border-slate-100 text-sm"><span className="truncate pr-2">{i + 1}. {row.name} <small className="text-slate-400">{row.code}</small></span><b>{row.total} {row.unit}</b></div>)}</div><div><h4 className="text-xs font-bold uppercase text-slate-500 mb-2">Consumo por setor (unidades separadas)</h4>{sectorUsage.slice(0, 6).map(row => <div key={row.sector} className="flex justify-between gap-3 py-2 border-b border-slate-100 text-sm"><span>{row.sector}</span><b className="text-right">{describeUnits(row.units)}</b></div>)}</div></div> : <div className="text-sm text-slate-400 py-4">Ainda não há saídas confirmadas no período selecionado.</div>}</div>
+                        <div className="bg-white rounded-xl border border-slate-200 p-4"><div className="flex justify-between items-center mb-3"><h3 className="font-bold text-slate-800">Alertas e reposição</h3><button onClick={() => setActiveTab('stock')} className="text-xs text-blue-600 font-bold">Ver estoque</button></div>{lowStockItems.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="text-xs text-slate-500"><tr><th className="text-left p-2">Material</th><th className="text-left p-2">Saldo / mínimo</th><th className="text-left p-2">Sugestão</th><th className="text-left p-2">Última movimentação</th></tr></thead><tbody>{lowStockItems.map(i => <tr key={i.id} className="border-t border-slate-100"><td className="p-2">{i.name}</td><td className="p-2">{i.currentQty || 0} / {i.minQty} {i.unit || 'un'}</td><td className="p-2">{Number(i.maxQty || 0) > 0 ? `${Math.max(0, Number(i.maxQty) - Number(i.currentQty || 0))} ${i.unit || 'un'}` : 'Configurar estoque máximo'}</td><td className="p-2 text-xs text-slate-500">{officeDateLabel(lastMovementFor(i.id)?.timestamp)}</td></tr>)}</tbody></table></div> : <div className="text-sm text-green-700">Nenhum material abaixo do mínimo.</div>}</div>
+                        <div className="bg-white rounded-xl border border-slate-200 p-4"><h3 className="font-bold text-slate-800 mb-3">Evolução mensal</h3>{monthlyUsage.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="text-xs text-slate-500"><tr><th className="text-left p-2">Mês</th><th className="text-left p-2">Material</th><th className="text-left p-2">Quantidade</th></tr></thead><tbody>{monthlyUsage.slice(0, 10).map((row, i) => <tr key={`${row.month}_${row.item}_${i}`} className="border-t border-slate-100"><td className="p-2">{row.month}</td><td className="p-2">{row.item}</td><td className="p-2">{row.quantity} {row.unit}</td></tr>)}</tbody></table></div> : <div className="text-sm text-slate-400">Sem dados de consumo mensal.</div>}</div>
+                    </div>}
+
+                    {activeTab === 'catalog' && <div className="space-y-4">
+                        <div className="flex justify-between items-center"><div><h3 className="font-bold text-slate-800">Cadastro de materiais</h3><p className="text-xs text-slate-500">O saldo inicial fica registrado como entrada; edições do saldo são feitas por movimentação.</p></div><button onClick={openNewItem} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold">+ Novo material</button></div>
+                        {formOpen && <form onSubmit={saveItem} className="bg-white p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <label className="text-xs font-bold text-slate-500">Nome<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
+                            <label className="text-xs font-bold text-slate-500">Código interno único<input required value={form.internalCode} onChange={e => setForm({ ...form, internalCode: e.target.value.toUpperCase() })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
+                            <label className="text-xs font-bold text-slate-500">Unidade<select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm">{OFFICE_UNITS.map(unit => <option key={unit} value={unit}>{unit === 'outro' ? 'Outra (informar)' : unit}</option>)}</select></label>
+                            {form.unit === 'outro' && <label className="text-xs font-bold text-slate-500">Unidade personalizada<input required value={form.unitOther} onChange={e => setForm({ ...form, unitOther: e.target.value })} placeholder="Ex.: fardo, folha, galão" className="mt-1 w-full p-2 border rounded text-sm" /></label>}
+                            <label className="text-xs font-bold text-slate-500 md:col-span-2">Descrição<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
+                            <label className="text-xs font-bold text-slate-500">Marca / fabricante<input value={form.marca} onChange={e => setForm({ ...form, marca: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
+                            <label className="text-xs font-bold text-slate-500">Localização<input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Sala / armário / prateleira" className="mt-1 w-full p-2 border rounded text-sm" /></label>
+                            <label className="text-xs font-bold text-slate-500">Estoque mínimo<input type="number" min="0" step="any" value={form.minQty} onChange={e => setForm({ ...form, minQty: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
+                            <label className="text-xs font-bold text-slate-500">Estoque máximo<input type="number" min="0" step="any" value={form.maxQty} onChange={e => setForm({ ...form, maxQty: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>
+                            {!editingId && <label className="text-xs font-bold text-slate-500">Saldo inicial<input type="number" min="0" step="any" value={form.initialQty} onChange={e => setForm({ ...form, initialQty: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label>}
+                            <label className="text-xs font-bold text-slate-500 md:col-span-3">Observações<textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" rows="2" /></label>
+                            <div className="md:col-span-3 flex justify-end gap-2"><button type="button" onClick={() => setFormOpen(false)} className="px-4 py-2 border rounded-lg text-sm">Cancelar</button><button disabled={saving} className="px-4 py-2 rounded-lg bg-green-600 text-white font-bold text-sm">{saving ? 'Salvando...' : 'Salvar material'}</button></div>
+                        </form>}
+                        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="text-left p-3">Código / material</th><th className="text-left p-3">Unidade</th><th className="text-left p-3">Saldo</th><th className="text-left p-3">Mín. / máx.</th><th className="text-left p-3">Local</th><th className="text-left p-3">Situação</th><th className="p-3"></th></tr></thead><tbody>{filteredItems.map(item => { const status = getStockStatus(item); const duration = durationFor(item.id); const isStale = staleItems.some(stale => stale.id === item.id); return <tr key={item.id} className="border-t border-slate-100"><td className="p-3"><b>{item.name}</b><div className="text-xs text-slate-400">{item.internalCode || 'Sem código'} {item.description ? `• ${item.description}` : ''}</div></td><td className="p-3">{item.unit || 'un'}</td><td className="p-3 font-bold">{item.currentQty || 0}</td><td className="p-3">{item.minQty || 0} / {item.maxQty ?? '—'}</td><td className="p-3">{item.location || '—'}</td><td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${status.style}`}>{status.label}</span><div className="text-[10px] text-slate-400 mt-1">{duration === null ? 'Sem histórico suficiente para previsão' : `Duração estimada: ${duration.toFixed(1)} meses`}</div>{isStale && <div className="text-[10px] text-orange-700 mt-1">Sem movimentação há mais de 90 dias</div>}</td><td className="p-3"><button onClick={() => openEditItem(item)} className="text-blue-600 text-xs font-bold">Editar</button><button onClick={() => { setHistoryItemId(item.id); setActiveTab('history'); }} className="block text-slate-500 text-xs">Histórico</button></td></tr>; })}{filteredItems.length === 0 && <tr><td colSpan="7" className="p-8 text-center text-slate-400">Nenhum material de Escritório encontrado.</td></tr>}</tbody></table></div>
+                    </div>}
+
+                    {activeTab === 'stock' && <div className="grid lg:grid-cols-2 gap-4">
+                        <form onSubmit={submitMovement} className="bg-white p-4 rounded-xl border border-slate-200 space-y-3"><h3 className="font-bold text-slate-800">Registrar movimentação</h3><label className="block text-xs font-bold text-slate-500">Material<select required value={movementForm.itemId} onChange={e => setMovementForm({ ...movementForm, itemId: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm"><option value="">Selecione</option>{activeItems.map(i => <option key={i.id} value={i.id}>{i.internalCode ? `${i.internalCode} • ` : ''}{i.name} ({i.currentQty || 0} {i.unit || 'un'})</option>)}</select></label>
+                            <div className="grid grid-cols-2 gap-3"><label className="text-xs font-bold text-slate-500">Tipo<select value={movementForm.type} onChange={e => setMovementForm({ ...movementForm, type: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm"><option value="in">Entrada</option><option value="out">Saída</option><option value="adjustment">Ajuste</option><option value="return">Devolução</option></select></label><label className="text-xs font-bold text-slate-500">Quantidade<input required type="number" min="0.01" step="any" value={movementForm.quantity} onChange={e => setMovementForm({ ...movementForm, quantity: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" /></label></div>
+                            {movementForm.type === 'adjustment' && <label className="block text-xs font-bold text-slate-500">Ajuste<select value={movementForm.direction} onChange={e => setMovementForm({ ...movementForm, direction: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm"><option value="add">Somar ao saldo</option><option value="subtract">Reduzir do saldo</option></select></label>}
+                            {(movementForm.type === 'out' || movementForm.type === 'return') && <label className="block text-xs font-bold text-slate-500">Setor de destino/origem<select value={movementForm.sector} onChange={e => setMovementForm({ ...movementForm, sector: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm"><option value="">Selecione</option>{SETORES.map(s => <option key={s}>{s}</option>)}</select></label>}
+                            <label className="block text-xs font-bold text-slate-500">Motivo / observação{movementForm.type === 'adjustment' ? ' (obrigatório)' : ''}<textarea value={movementForm.notes} onChange={e => setMovementForm({ ...movementForm, notes: e.target.value })} className="mt-1 w-full p-2 border rounded text-sm" rows="2" /></label><button disabled={movementSaving} className="w-full p-2.5 rounded-lg bg-blue-600 text-white font-bold">{movementSaving ? 'Registrando...' : 'Confirmar movimentação'}</button>
+                        </form>
+                        <div className="bg-white p-4 rounded-xl border border-slate-200"><h3 className="font-bold text-slate-800 mb-3">Regras de saldo</h3><ul className="text-sm text-slate-600 list-disc pl-5 space-y-2"><li>Entrada e devolução aumentam o saldo; saída e ajuste para redução não podem ultrapassá-lo.</li><li>O saldo e o histórico são atualizados juntos em uma transação do Firestore.</li><li>Distribuições registram a saída quando a entrega é confirmada.</li><li>O saldo de uma solicitação parcial permanece pendente até outra entrega ou cancelamento.</li></ul><div className="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">Materiais: {activeItems.length} • Movimentações de Escritório: {officeMovements.length}</div></div>
+                        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 overflow-x-auto"><h3 className="font-bold text-slate-800 p-4 pb-2">Movimentações recentes</h3><table className="w-full text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="text-left p-3">Data</th><th className="text-left p-3">Material</th><th className="text-left p-3">Tipo</th><th className="text-left p-3">Quantidade</th><th className="text-left p-3">Saldo antes → depois</th><th className="text-left p-3">Setor</th><th className="text-left p-3">Responsável</th></tr></thead><tbody>{officeMovements.slice(0, 12).map(m => <tr key={m.id} className="border-t border-slate-100"><td className="p-3 text-xs">{officeDateLabel(m.timestamp)}</td><td className="p-3">{m.itemName}</td><td className="p-3">{officeMovementLabel(m.type, m.direction)}</td><td className="p-3">{m.quantity} {m.unit || 'un'}</td><td className="p-3">{m.previousQty ?? '—'} → {m.balanceAfter ?? '—'}</td><td className="p-3">{m.sector || '—'}</td><td className="p-3">{m.user || '—'}</td></tr>)}{officeMovements.length === 0 && <tr><td colSpan="7" className="p-6 text-center text-slate-400">Nenhuma movimentação de Escritório.</td></tr>}</tbody></table></div>
+                    </div>}
+
+                    {activeTab === 'distribution' && <div className="space-y-4">
+                        <form onSubmit={createDistribution} className="bg-white rounded-xl border border-slate-200 p-4 grid md:grid-cols-5 gap-3"><h3 className="md:col-span-5 font-bold text-slate-800">Nova solicitação por setor</h3><select required value={distributionForm.itemId} onChange={e => setDistributionForm({ ...distributionForm, itemId: e.target.value })} className="p-2 border rounded text-sm"><option value="">Material</option>{activeItems.map(i => <option key={i.id} value={i.id}>{i.name} • saldo {i.currentQty || 0}</option>)}</select><input required type="number" min="0.01" step="any" value={distributionForm.quantity} onChange={e => setDistributionForm({ ...distributionForm, quantity: e.target.value })} placeholder="Quantidade solicitada" className="p-2 border rounded text-sm"/><select required value={distributionForm.sector} onChange={e => setDistributionForm({ ...distributionForm, sector: e.target.value })} className="p-2 border rounded text-sm"><option value="">Setor</option>{SETORES.map(s => <option key={s}>{s}</option>)}</select><input value={distributionForm.notes} onChange={e => setDistributionForm({ ...distributionForm, notes: e.target.value })} placeholder="Observação" className="p-2 border rounded text-sm"/><button disabled={distributionSaving} className="p-2 rounded bg-blue-600 text-white font-bold text-sm">{distributionSaving ? 'Salvando...' : 'Registrar pedido'}</button></form>
+                        <div className="space-y-3">{distributions.filter(d => statusFilter === 'all' || d.status === statusFilter).filter(d => !searchTerm || `${d.itemName} ${d.itemCode} ${d.sector}`.toLowerCase().includes(searchTerm.toLowerCase())).map(d => { const remaining = Math.max(0, Number(d.qtyRequested || 0) - Number(d.qtyDelivered || 0)); return <div key={d.id} className="bg-white border border-slate-200 rounded-xl p-4"><div className="flex flex-wrap justify-between gap-2"><div><b>{d.itemName}</b> <span className="text-xs text-slate-400">{d.itemCode}</span><div className="text-sm text-slate-600">{d.sector} • pedido {d.qtyRequested} {d.unit} • entregue {d.qtyDelivered || 0} • pendente {remaining}</div><div className="text-xs text-slate-400">Solicitado {officeDateLabel(d.requestedAt)} por {d.requesterName || '—'}{d.responsible ? ` • atendido por ${d.responsible}` : ''}</div>{d.notes && <div className="text-xs text-slate-500 mt-1">{d.notes}</div>}</div><span className={`h-fit px-2 py-1 rounded text-xs font-bold ${d.status === 'atendido' ? 'bg-green-100 text-green-700' : d.status === 'parcialmente_atendido' ? 'bg-yellow-100 text-yellow-800' : d.status === 'cancelado' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-700'}`}>{d.status === 'parcialmente_atendido' ? 'Parcialmente atendido' : d.status}</span></div>
+                            {remaining > 0 && d.status !== 'cancelado' && <div className="grid sm:grid-cols-3 gap-2 mt-3"><input type="number" min="0.01" step="any" max={remaining} value={deliveryDrafts[d.id]?.quantity || ''} onChange={e => setDeliveryDrafts(prev => ({ ...prev, [d.id]: { ...prev[d.id], quantity: e.target.value } }))} placeholder={`Qtd a entregar (até ${remaining})`} className="p-2 border rounded text-sm"/><input value={deliveryDrafts[d.id]?.receivedBy || ''} onChange={e => setDeliveryDrafts(prev => ({ ...prev, [d.id]: { ...prev[d.id], receivedBy: e.target.value } }))} placeholder="Pessoa que recebeu (opcional)" className="p-2 border rounded text-sm"/><div className="flex gap-2"><button disabled={distributionSaving} onClick={() => fulfillDistribution(d)} className="flex-1 p-2 rounded bg-green-600 text-white font-bold text-xs">Confirmar entrega</button><button disabled={distributionSaving} onClick={() => cancelDistribution(d)} className="p-2 rounded border text-red-600 font-bold text-xs">Cancelar</button></div></div>}
+                        </div>; })}{distributions.length === 0 && <div className="text-center py-8 text-slate-400">Nenhuma solicitação cadastrada.</div>}</div>
+                    </div>}
+
+                    {activeTab === 'history' && <div className="space-y-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2"><label className="text-[10px] font-bold text-slate-500">De<input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="block w-full p-2 border rounded text-sm"/></label><label className="text-[10px] font-bold text-slate-500">Até<input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="block w-full p-2 border rounded text-sm"/></label><label className="text-[10px] font-bold text-slate-500">Material<select value={historyItemId} onChange={e => setHistoryItemId(e.target.value)} className="block w-full p-2 border rounded text-sm"><option value="all">Todos</option>{items.map(i => <option key={i.id} value={i.id}>{i.internalCode || ''} {i.name}</option>)}</select></label><label className="text-[10px] font-bold text-slate-500">Tipo<select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="block w-full p-2 border rounded text-sm"><option value="all">Todos</option><option value="in">Entrada</option><option value="out">Saída</option><option value="adjustment">Ajuste</option><option value="return">Devolução</option></select></label><label className="text-[10px] font-bold text-slate-500">Setor<select value={sectorFilter} onChange={e => setSectorFilter(e.target.value)} className="block w-full p-2 border rounded text-sm"><option value="all">Todos</option>{SETORES.map(s => <option key={s}>{s}</option>)}</select></label><label className="text-[10px] font-bold text-slate-500">Responsável<input value={responsibleFilter} onChange={e => setResponsibleFilter(e.target.value)} className="block w-full p-2 border rounded text-sm"/></label><label className="text-[10px] font-bold text-slate-500">Status distribuição<select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="block w-full p-2 border rounded text-sm"><option value="all">Todos</option><option value="pendente">Pendente</option><option value="parcialmente_atendido">Parcialmente atendido</option><option value="atendido">Atendido</option><option value="cancelado">Cancelado</option></select></label><button onClick={() => { setPeriodStart(''); setPeriodEnd(''); setTypeFilter('all'); setSectorFilter('all'); setResponsibleFilter(''); setStatusFilter('all'); setHistoryItemId('all'); setSearchTerm(''); }} className="self-end p-2 border rounded text-xs font-bold">Limpar filtros</button></div>
+                        <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr><th className="text-left p-3">Data</th><th className="text-left p-3">Material / código</th><th className="text-left p-3">Qtd.</th><th className="text-left p-3">Setor</th><th className="text-left p-3">Responsável</th><th className="text-left p-3">Tipo / status</th><th className="text-left p-3">Observações</th></tr></thead><tbody>{historyRows.map(row => <React.Fragment key={row.id}><tr className="border-t border-slate-100 cursor-pointer hover:bg-slate-50" onClick={() => setSelectedDetails(selectedDetails === row.id ? null : row.id)}><td className="p-3 text-xs whitespace-nowrap">{officeDateLabel(row.date)}</td><td className="p-3">{row.itemName}<div className="text-[10px] text-slate-400">{row.itemCode || 'Sem código'} • {row.kind}</div></td><td className="p-3">{row.quantity} {row.unit}</td><td className="p-3">{row.sector}</td><td className="p-3">{row.responsible}</td><td className="p-3">{row.type}<div className="text-[10px] text-slate-400">{row.status}</div></td><td className="p-3 max-w-64 truncate">{row.notes || '—'}</td></tr>{selectedDetails === row.id && <tr><td colSpan="7" className="bg-blue-50/50 p-4 text-xs"><b>Detalhes do registro</b><pre className="whitespace-pre-wrap mt-2">{JSON.stringify(row.details, null, 2)}</pre></td></tr>}</React.Fragment>)}{historyRows.length === 0 && <tr><td colSpan="7" className="p-8 text-center text-slate-400">Nenhum registro encontrado com os filtros atuais.</td></tr>}</tbody></table></div>
+                    </div>}
+
+                    {activeTab === 'reports' && <div className="space-y-4"><div className="bg-white rounded-xl border border-slate-200 p-4 grid md:grid-cols-5 gap-3"><label className="md:col-span-2 text-xs font-bold text-slate-500">Relatório<select value={reportType} onChange={e => setReportType(e.target.value)} className="mt-1 w-full p-2 border rounded text-sm">{Object.entries(reportNames).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label><label className="text-xs font-bold text-slate-500">Período inicial<input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="mt-1 w-full p-2 border rounded text-sm"/></label><label className="text-xs font-bold text-slate-500">Período final<input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="mt-1 w-full p-2 border rounded text-sm"/></label><div className="flex items-end gap-2"><button onClick={exportOfficePDF} className="flex-1 p-2 rounded bg-red-600 text-white font-bold text-sm">PDF</button><button disabled={reportBusy} onClick={exportOfficeExcel} className="flex-1 p-2 rounded bg-green-600 text-white font-bold text-sm">{reportBusy ? '...' : 'Excel'}</button></div></div><div className="bg-white border border-slate-200 rounded-xl p-4"><div className="flex justify-between text-sm mb-3"><b>{reportNames[reportType]}</b><span className="text-slate-400">{reportRows.length} registros • gerado em {new Date().toLocaleString('pt-BR')}</span></div><div className="overflow-x-auto max-h-96"><table className="w-full text-xs"><thead><tr>{reportRows[0] && Object.keys(reportRows[0]).map(key => <th key={key} className="text-left p-2 bg-slate-50">{key}</th>)}</tr></thead><tbody>{reportRows.slice(0, 100).map((row, i) => <tr key={i} className="border-t border-slate-100">{Object.values(row).map((value, j) => <td key={j} className="p-2">{String(value ?? '')}</td>)}</tr>)}</tbody></table>{!reportRows.length && <div className="text-center p-6 text-slate-400">Nenhum dado para exportar com os filtros selecionados.</div>}</div></div></div>}
                 </div>
             );
         };
@@ -2497,6 +2947,9 @@
                             {(appUser.role === 'admin' || appUser.role === 'master' || appUser.role === 'logistics') && <button onClick={() => setView('inventory')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'inventory' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
                                 <Icons.Box /> Controle de Estoque
                             </button>}
+                            {(appUser.role === 'admin' || appUser.role === 'master') && <button onClick={() => setView('office')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'office' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
+                                📎 Módulo Escritório
+                            </button>}
                             {(appUser.role === 'admin' || appUser.role === 'master' || appUser.role === 'logistics') && <button onClick={() => setView('movements')} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 border ${view === 'movements' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700'}`}>
                                 <Icons.Activity /> Movimentações
                             </button>}
@@ -2744,6 +3197,7 @@
                         )}
                         {view === 'suggestions' && <SuggestionsView suggestions={suggestions} userRole={appUser.role} />}
                         {view === 'audit' && appUser.role === 'master' && <AuditView />}
+                        {view === 'office' && (appUser.role === 'admin' || appUser.role === 'master') && <OfficeModuleView currentUser={appUser} />}
                         {view === 'inventory' && <InventoryView userRole={appUser.role} currentUser={appUser} />}
                         {view === 'movements' && <MovementsView userRole={appUser.role} />}
                         {view === 'purchases' && <PurchaseRequestView userRole={appUser.role} />}
