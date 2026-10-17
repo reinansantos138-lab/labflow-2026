@@ -73,6 +73,20 @@
         .dark .text-orange-700 { color: #fdba74 !important; }
         .dark .bg-indigo-50 { background-color: rgba(49, 46, 129, 0.3) !important; }
         .dark .bg-purple-50 { background-color: rgba(88, 28, 135, 0.3) !important; }
+
+        /* Tema sazonal do Outubro Rosa: ativo de 16 a 31/10/2026. */
+        .october-pink .bg-blue-600 { background-color: #db2777 !important; }
+        .october-pink [class~="hover:bg-blue-700"]:hover { background-color: #be185d !important; }
+        .october-pink .text-blue-600, .october-pink .text-blue-700, .october-pink .text-blue-800 { color: #be185d !important; }
+        .october-pink .bg-blue-50 { background-color: #fdf2f8 !important; }
+        .october-pink .bg-blue-100 { background-color: #fce7f3 !important; }
+        .october-pink .border-blue-200, .october-pink .border-blue-500, .october-pink .border-blue-600 { border-color: #f9a8d4 !important; }
+        .october-pink [class~="hover:text-blue-600"]:hover { color: #be185d !important; }
+        .dark .october-pink.bg-pink-50 { background-color: #0f172a !important; }
+        .dark .october-pink .bg-pink-50, .dark .october-pink .bg-blue-50 { background-color: rgba(131, 24, 67, 0.22) !important; }
+        .dark .october-pink .bg-blue-100 { background-color: rgba(157, 23, 77, 0.35) !important; }
+        .dark .october-pink .text-blue-600, .dark .october-pink .text-blue-700, .dark .october-pink .text-blue-800 { color: #f9a8d4 !important; }
+        .dark .october-pink .border-blue-200, .dark .october-pink .border-blue-500, .dark .october-pink .border-blue-600 { border-color: rgba(244, 114, 182, 0.45) !important; }
     </style>
 </head>
 <body>
@@ -80,7 +94,7 @@
 
     <script type="text/babel" data-type="module" data-presets="react">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, setDoc, getDoc, where, getDocs, writeBatch, limit, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // --- CONFIGURAÇÃO FIREBASE ---
@@ -97,6 +111,10 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const IS_PINK_OCTOBER = (() => {
+            const today = new Date();
+            return today.getFullYear() === 2026 && today.getMonth() === 9 && today.getDate() >= 16 && today.getDate() <= 31;
+        })();
 
         // --- STREAMING_CHUNK:Constantes e Listas... ---
         const SETORES = ['QGI', 'ESP', 'FQA', 'FRASCARIA', 'CRO', 'MIC', 'RECEPÇÃO', 'AMOSTRAGEM', 'AUXILIARES', 'OUTROS', 'GESTÃO', 'COMERCIAL']; 
@@ -422,14 +440,16 @@
             const [sector, setSector] = React.useState('');
             const [accessCode, setAccessCode] = React.useState('');
             const [error, setError] = React.useState('');
+            const [resetMessage, setResetMessage] = React.useState('');
             const [isLoading, setIsLoading] = React.useState(false);
 
             const handleLoginSubmit = async () => {
                 setError('');
+                setResetMessage('');
                 if (!email.trim() || !password.trim()) return setError("Preencha e-mail e senha.");
                 setIsLoading(true);
                 try {
-                    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                    const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
                     const docSnap = await getDoc(doc(db, 'users_lab_2026', userCredential.user.uid));
                     if (docSnap.exists()) {
                         const data = docSnap.data();
@@ -441,8 +461,28 @@
                 } catch (err) {
                     console.error(err);
                     setError("E-mail ou senha incorretos.");
+                } finally {
+                    setIsLoading(false);
                 }
-                setIsLoading(false);
+            };
+
+            const handlePasswordReset = async () => {
+                setError('');
+                setResetMessage('');
+                const normalizedEmail = email.trim();
+                if (!normalizedEmail) return setError('Digite seu e-mail para receber o link de redefinição.');
+                setIsLoading(true);
+                try {
+                    await sendPasswordResetEmail(auth, normalizedEmail);
+                    setResetMessage('Se este e-mail estiver cadastrado, você receberá um link para redefinir sua senha.');
+                } catch (err) {
+                    console.error(err);
+                    if (err.code === 'auth/invalid-email') setError('Digite um e-mail válido.');
+                    else if (err.code === 'auth/too-many-requests') setError('Muitas tentativas. Aguarde e tente novamente.');
+                    else setError('Não foi possível enviar o link agora. Verifique o e-mail e tente novamente.');
+                } finally {
+                    setIsLoading(false);
+                }
             };
 
             const handleRegisterSubmit = async () => {
@@ -479,38 +519,45 @@
             };
 
             return (
-                <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+                <div className={`min-h-screen ${IS_PINK_OCTOBER ? "bg-pink-50 october-pink" : "bg-slate-50"} flex flex-col items-center justify-center p-4`}>
                     <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-slate-100 fade-in">
                         <div className="flex justify-center mb-6"><InstitutionalLogo /></div>
                         <h2 className="text-xl font-semibold text-center text-slate-700 mb-1">
                             {isRegistering ? 'Criar Nova Conta' : 'Acesso ao Sistema do MQB'}
                         </h2>
-                        <p className="text-center text-slate-500 mb-6 text-sm">LabFlow 2026</p>
+                        <p className="text-center text-slate-500 mb-2 text-sm">LabFlow 2026</p>
+                        {IS_PINK_OCTOBER && <p className="text-center text-pink-700 mb-5 text-[11px] font-bold uppercase tracking-wider">Outubro Rosa · 16 a 31 de outubro</p>}
                         
                         <div className="space-y-4">
                             {!isRegistering ? (
-                                <>
+                                <form onSubmit={(e) => { e.preventDefault(); handleLoginSubmit(); }} className="space-y-4" noValidate>
                                     <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-1">E-mail (Login)</label>
-                                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="exemplo@senaicimatec.com" className="w-full p-3 border border-slate-300 rounded-lg outline-none" />
+                                        <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="exemplo@senaicimatec.com" className="w-full p-3 border border-slate-300 rounded-lg outline-none" />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-1">Senha</label>
                                         <div className="relative">
                                             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Lock /></div>
-                                            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Sua senha" className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg outline-none" />
+                                            <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Sua senha" className="w-full pl-10 pr-3 py-3 border border-slate-300 rounded-lg outline-none" />
                                         </div>
                                     </div>
-                                    {error && <div className="text-red-500 text-sm font-medium text-center bg-red-50 p-2 rounded">{error}</div>}
-                                    <button onClick={handleLoginSubmit} disabled={isLoading} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow uppercase transition-all">
+                                    {error && <div role="alert" className="text-red-500 text-sm font-medium text-center bg-red-50 p-2 rounded">{error}</div>}
+                                    {resetMessage && <div role="status" className="text-green-700 text-sm font-medium text-center bg-green-50 p-2 rounded">{resetMessage}</div>}
+                                    <button type="submit" disabled={isLoading} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow uppercase transition-all">
                                         {isLoading ? 'Aguarde...' : 'Entrar'}
                                     </button>
+                                    <div className="text-center -mt-2">
+                                        <button type="button" onClick={handlePasswordReset} disabled={isLoading} className="text-sm text-blue-600 hover:underline font-semibold disabled:opacity-60">
+                                            Esqueceu a senha?
+                                        </button>
+                                    </div>
                                     <div className="text-center mt-4 pt-4 border-t border-slate-100">
-                                        <button onClick={() => { setIsRegistering(true); setError(''); }} className="text-sm text-blue-600 hover:underline font-semibold">
+                                        <button type="button" onClick={() => { setIsRegistering(true); setError(''); setResetMessage(''); }} className="text-sm text-blue-600 hover:underline font-semibold">
                                             Não tem uma conta? Cadastre-se
                                         </button>
                                     </div>
-                                </>
+                                </form>
                             ) : (
                                 <div className="animate-in fade-in space-y-3">
                                     <div><label className="block text-xs font-bold text-slate-700 mb-1">Nome Completo</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: João Silva" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none text-sm" /></div>
@@ -2899,7 +2946,7 @@
             if (!appUser) return <LoginScreen onLogin={handleLogin} />;
 
             return (
-                <div className="min-h-screen pb-20 fade-in">
+                <div className={`min-h-screen pb-20 fade-in ${IS_PINK_OCTOBER ? "october-pink" : ""}`}>
                     <NoticeBanner notices={notices} userRole={appUser.role} onUpdateNotice={handleUpdateNotice} />
                     <header className="bg-white text-slate-800 shadow-sm border-b border-slate-200 sticky top-0 z-10">
                         <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center"><div className="flex items-center gap-4 select-none"><InstitutionalLogo /><div className="hidden sm:block h-8 w-px bg-slate-200"></div><div><h1 className="text-sm font-bold text-slate-700 leading-tight">LABFLOW</h1><p className="text-xs text-slate-500 uppercase">{appUser.role === 'master' ? 'Gestor do Sistema' : appUser.role === 'admin' ? 'Administração' : appUser.role === 'logistics' ? 'Logística' : appUser.sector}</p></div></div><div className="flex items-center gap-2">
