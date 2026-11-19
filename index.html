@@ -154,6 +154,38 @@
             'consumivel_adm': 'Consumivel (ADM)'
         };
 
+        const REQUEST_ITEM_GROUP_ORDER = [
+            'Limpeza e higiene',
+            'Papelaria e mesa de escritório',
+            'Equipamentos de proteção',
+            'Outros itens de escritório',
+            'Consumíveis administrativos',
+            'Reagentes',
+            'Vidrarias e recipientes',
+            'Instrumentos e acessórios',
+            'Materiais de laboratório',
+            'Consumíveis de laboratório',
+            'Outros itens'
+        ];
+        const normalizeInventoryLabel = (value = '') => String(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+        const getRequestItemGroup = (item) => {
+            const name = normalizeInventoryLabel(item.name);
+            if (item.category === 'epi') return 'Equipamentos de proteção';
+            if (CAT_GROUPS.admin.includes(item.category)) {
+                if (/(esponja|alcool|agua sanitaria|detergente|desinfetante|limpeza|sabonete|papel higienico|papel toalha|toalha de papel|sacos? de lixo|lixeira|vassoura|rodo|pano de limpeza)/.test(name)) return 'Limpeza e higiene';
+                if (/(clip|grampeador|grampos|caneta|lapis|lapiseira|borracha|marca texto|marcador|regua|tesoura|papel sulfite|papel a4|papel oficio|envelope|pasta|caderno|bloco|post it|perfurador|furador|apontador|prancheta|corretivo)/.test(name)) return 'Papelaria e mesa de escritório';
+                return item.category === 'escritorio' ? 'Outros itens de escritório' : 'Consumíveis administrativos';
+            }
+            if (item.category === 'reagente') return 'Reagentes';
+            if (item.category === 'materiais') {
+                if (/(bequer|erlenmeyer|proveta|pipeta|tubo|frasco|funil|balao volumetrico|vidraria)/.test(name)) return 'Vidrarias e recipientes';
+                if (/(micropipeta|pisseta|pinca|termometro|cronometro|estante|rack|instrumento)/.test(name)) return 'Instrumentos e acessórios';
+                return 'Materiais de laboratório';
+            }
+            if (CAT_GROUPS.logistics.includes(item.category)) return 'Consumíveis de laboratório';
+            return CAT_LABELS_CLEAN[item.category] || 'Outros itens';
+        };
+
         // --- STREAMING_CHUNK:Funções Utilitárias... ---
         const toSuperscript = (num) => {
             const map = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹', '-':'⁻'};
@@ -1747,6 +1779,15 @@
         const ReleaseNotesView = () => {
             const notes = [
                 {
+                    version: 'v2.5.0',
+                    date: 'Novembro 2026',
+                    changes: [
+                        'Permite selecionar vários itens do estoque na mesma solicitação, com quantidade e unidade definidas por item.',
+                        'Organiza a seleção por grupos de itens similares, como limpeza e higiene, papelaria, reagentes e materiais de laboratório.',
+                        'Cada item continua gerando um pedido próprio para preservar o fluxo atual de aprovação, entrega e histórico.'
+                    ]
+                },
+                {
                     version: 'v2.4.0',
                     date: 'Novembro 2026',
                     changes: [
@@ -1834,12 +1875,14 @@
             const [view, setView] = React.useState('active'); 
             const [inventoryNames, setInventoryNames] = React.useState([]);
             const [inventoryMap, setInventoryMap] = React.useState({});
-            const [newItem, setNewItem] = React.useState('');
-            const [quantity, setQuantity] = React.useState('');
-            const [unit, setUnit] = React.useState('un');
-            const [category, setCategory] = React.useState('reagente');
+            const [selectedRequestItems, setSelectedRequestItems] = React.useState([]);
+            const [inventorySearchTerm, setInventorySearchTerm] = React.useState('');
             const [isUrgent, setIsUrgent] = React.useState(false);
             const [notes, setNotes] = React.useState('');
+            const [manualRequestItem, setManualRequestItem] = React.useState('');
+            const [manualRequestQuantity, setManualRequestQuantity] = React.useState('1');
+            const [manualRequestUnit, setManualRequestUnit] = React.useState('un');
+            const [manualRequestCategory, setManualRequestCategory] = React.useState('reagente');
             const [searchTerm, setSearchTerm] = React.useState('');
             const [draftSaved, setDraftSaved] = React.useState(false);
             const [modalOpen, setModalOpen] = React.useState(false);
@@ -1869,8 +1912,6 @@
             const [consumptionStart, setConsumptionStart] = React.useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
             const [consumptionEnd, setConsumptionEnd] = React.useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
 
-            const [itemCodeReq, setItemCodeReq] = React.useState('');
-            const [storageLocationReq, setStorageLocationReq] = React.useState('');
             const [sectorReq, setSectorReq] = React.useState('');
 
             const alertDebounce = React.useRef(new Map());
@@ -1903,7 +1944,7 @@
             }, []);
 
             React.useEffect(() => { if (!user) return; onSnapshot(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), s => s.exists() ? setNotices(s.data()) : setDoc(doc(db, 'solicitacoes_lab_2026', 'NOTICES_CONFIG'), { logistics: '', admin: '' })); }, [user]);
-            React.useEffect(() => { if (appUser && (newItem || quantity || notes)) { localStorage.setItem('labflow_draft_v1', JSON.stringify({ item: newItem, quantity, unit, category, notes, isUrgent })); setDraftSaved(true); setTimeout(() => setDraftSaved(false), 2000); } }, [newItem, quantity, unit, category, notes, isUrgent, appUser]);
+            React.useEffect(() => { if (appUser && (selectedRequestItems.length || notes)) { localStorage.setItem('labflow_draft_v2', JSON.stringify({ items: selectedRequestItems, notes, isUrgent })); setDraftSaved(true); setTimeout(() => setDraftSaved(false), 2000); } }, [selectedRequestItems, notes, isUrgent, appUser]);
             React.useEffect(() => { if (!user) return; onSnapshot(query(collection(db, 'solicitacoes_lab_2026'), orderBy('createdAt', 'desc')), s => setRequests(s.docs.filter(d => d.id !== 'NOTICES_CONFIG').map(d => ({ id: d.id, ...d.data() })))); }, [user]);
             
             React.useEffect(() => {
@@ -1969,28 +2010,76 @@
                 return () => unsub(); 
             }, [user, appUser, techSubTab]);
 
-            const handleItemChange = (e) => {
-                const val = e.target.value;
-                setNewItem(val);
-                const match = inventoryMap[val.trim().toLowerCase()];
-                if (match) {
-                    setCategory(match.category);
-                    setUnit(match.unit); 
-                    setStorageLocationReq(match.location || '');
-                    
-                    try {
-                        const catalog = JSON.parse(localStorage.getItem('labflow_catalog') || '{}');
-                        const savedItem = catalog[val.trim().toLowerCase()];
-                        if (savedItem && savedItem.code) {
-                            setItemCodeReq(savedItem.code);
-                        } else {
-                            setItemCodeReq('');
-                        }
-                    } catch(err) {}
-                } else {
-                    setItemCodeReq('');
-                    setStorageLocationReq('');
-                }
+            const requestCategoryScope = appUser?.role === 'master'
+                ? (techSubTab === 'logistics' ? CAT_GROUPS.logistics : CAT_GROUPS.admin)
+                : appUser?.role === 'logistics' ? CAT_GROUPS.logistics : CAT_GROUPS.admin;
+            const requestItemsByGroup = inventoryNames.reduce((groups, name) => {
+                const itemData = inventoryMap[name.toLowerCase()] || {};
+                if (!requestCategoryScope.includes(itemData.category)) return groups;
+                if (!normalizeInventoryLabel(name).includes(normalizeInventoryLabel(inventorySearchTerm))) return groups;
+                const item = {
+                    key: `${itemData.category}:${normalizeInventoryLabel(name)}`,
+                    name,
+                    category: itemData.category,
+                    unit: itemData.unit || 'un',
+                    totalQty: parseInt(itemData.totalQty) || 0,
+                    location: itemData.location || ''
+                };
+                const group = getRequestItemGroup(item);
+                if (!groups[group]) groups[group] = [];
+                groups[group].push(item);
+                return groups;
+            }, {});
+            const requestItemGroups = Object.entries(requestItemsByGroup).sort((a, b) => {
+                const aIndex = REQUEST_ITEM_GROUP_ORDER.indexOf(a[0]);
+                const bIndex = REQUEST_ITEM_GROUP_ORDER.indexOf(b[0]);
+                return (aIndex < 0 ? REQUEST_ITEM_GROUP_ORDER.length : aIndex) - (bIndex < 0 ? REQUEST_ITEM_GROUP_ORDER.length : bIndex) || a[0].localeCompare(b[0]);
+            });
+            requestItemGroups.forEach(([, items]) => items.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
+
+            const buildRequestItemSelection = (item, selectedQuantity = '1') => {
+                let savedItem = {};
+                try { savedItem = JSON.parse(localStorage.getItem('labflow_catalog') || '{}')[item.name.trim().toLowerCase()] || {}; } catch (error) {}
+                return {
+                    key: item.key || `${item.category}:${normalizeInventoryLabel(item.name)}`,
+                    name: item.name.trim(),
+                    category: item.category,
+                    unit: item.unit || 'un',
+                    quantity: String(selectedQuantity),
+                    totalQty: item.totalQty,
+                    itemCode: item.itemCode || savedItem.code || '',
+                    storageLocation: item.storageLocation || item.location || savedItem.loc || '',
+                    isManual: Boolean(item.isManual)
+                };
+            };
+            const toggleRequestItem = (item) => setSelectedRequestItems(current => {
+                const isSelected = current.some(selected => selected.key === item.key);
+                return isSelected ? current.filter(selected => selected.key !== item.key) : [...current, buildRequestItemSelection(item)];
+            });
+            const toggleRequestItemGroup = (items) => setSelectedRequestItems(current => {
+                const itemKeys = new Set(items.map(item => item.key));
+                const allSelected = items.length > 0 && items.every(item => current.some(selected => selected.key === item.key));
+                if (allSelected) return current.filter(selected => !itemKeys.has(selected.key));
+                const additions = items.filter(item => !current.some(selected => selected.key === item.key)).map(item => buildRequestItemSelection(item));
+                return [...current, ...additions];
+            });
+            const updateSelectedRequestItem = (key, field, value) => setSelectedRequestItems(current => current.map(item => item.key === key ? { ...item, [field]: value } : item));
+            const addManualRequestItem = () => {
+                if (!manualRequestItem.trim() || !manualRequestQuantity || !Number.isInteger(Number(manualRequestQuantity)) || Number(manualRequestQuantity) < 1) return;
+                const manualItem = buildRequestItemSelection({
+                    key: `${manualRequestCategory}:${normalizeInventoryLabel(manualRequestItem)}`,
+                    name: manualRequestItem,
+                    category: manualRequestCategory,
+                    unit: manualRequestUnit,
+                    isManual: true
+                }, manualRequestQuantity);
+                setSelectedRequestItems(current => {
+                    const existing = current.find(item => item.key === manualItem.key);
+                    if (existing) return current.map(item => item.key === manualItem.key ? { ...item, quantity: String((parseInt(item.quantity) || 0) + (parseInt(manualItem.quantity) || 0)) } : item);
+                    return [...current, manualItem];
+                });
+                setManualRequestItem('');
+                setManualRequestQuantity('1');
             };
 
             const handleLogin = (u) => { setAppUser(u); localStorage.setItem('labflow_user_v2', JSON.stringify(u)); };
@@ -2003,50 +2092,65 @@
             
             const handleSubmitRequest = async (e) => { 
                 e.preventDefault(); 
-                if (!newItem.trim() || !quantity) return;
-                if (appUser?.role === 'lab_tech' && !CAT_GROUPS.admin.includes(category)) return showAlert('Pedidos Almoxarifado são restritos à Logística e ao Master.'); 
+                if (selectedRequestItems.length === 0) return showAlert('Selecione ao menos um item para solicitar.');
+                if (selectedRequestItems.some(item => !item.quantity || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1)) return showAlert('Informe uma quantidade inteira válida para cada item selecionado.');
+                if (appUser?.role === 'lab_tech' && selectedRequestItems.some(item => !CAT_GROUPS.admin.includes(item.category))) return showAlert('Pedidos Almoxarifado são restritos à Logística e ao Master.');
                 try {
-                    const docRef = await addDoc(collection(db, 'solicitacoes_lab_2026'), { 
-                        item: newItem.trim(), 
-                        quantity, 
-                        unit, 
-                        category, 
-                        isUrgent, 
-                        notes, 
-                        itemCode: itemCodeReq, 
-                        storageLocation: storageLocationReq, 
-                        requesterName: appUser.name, 
-                        requesterEmail: appUser.email || '', 
-                        requesterSector: sectorReq || appUser.sector, 
-                        requesterId: user.uid, 
-                        createdAt: new Date().toISOString(), 
-                        status: 'pending', 
-                        statusUpdatedAt: new Date().toISOString() 
-                    }); 
-                    
-                    const toEmail = CAT_GROUPS.logistics.includes(category) ? EMAIL_LOGISTICS : EMAIL_ADMIN;
-                    const htmlMsg = `
-                        <div style="font-family: sans-serif; color: #333;">
-                            <h2 style="color: #2563eb;">Novo Pedido Cadastrado</h2>
-                            <p><b>${appUser.name}</b> (${sectorReq || appUser.sector}) solicitou:</p>
-                            <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 500px;">
-                                <tr><td style="background:#f8fafc; font-weight:bold;">Item:</td><td>${newItem.trim()}</td></tr>
-                                <tr><td style="background:#f8fafc; font-weight:bold;">Qtd:</td><td>${quantity} ${unit}</td></tr>
-                                <tr><td style="background:#f8fafc; font-weight:bold;">Urgente:</td><td>${isUrgent ? 'SIM 🔴' : 'Não'}</td></tr>
-                                <tr><td style="background:#f8fafc; font-weight:bold;">Obs:</td><td>${notes || '-'}</td></tr>
-                            </table>
-                        </div>
-                    `;
-                    sendEmailNotification(toEmail, `Novo pedido: ${newItem.trim()}`, htmlMsg);
+                    const batch = writeBatch(db);
+                    const submittedAt = new Date().toISOString();
+                    const itemsByRecipient = {};
+                    selectedRequestItems.forEach(item => {
+                        const requestData = {
+                            item: item.name.trim(),
+                            quantity: item.quantity,
+                            unit: item.unit || 'un',
+                            category: item.category,
+                            isUrgent,
+                            notes,
+                            itemCode: item.itemCode || '',
+                            storageLocation: item.storageLocation || '',
+                            requesterName: appUser.name,
+                            requesterEmail: appUser.email || '',
+                            requesterSector: sectorReq || appUser.sector,
+                            requesterId: user.uid,
+                            createdAt: submittedAt,
+                            status: 'pending',
+                            statusUpdatedAt: submittedAt
+                        };
+                        batch.set(doc(collection(db, 'solicitacoes_lab_2026')), requestData);
+                        const toEmail = CAT_GROUPS.logistics.includes(item.category) ? EMAIL_LOGISTICS : EMAIL_ADMIN;
+                        if (!itemsByRecipient[toEmail]) itemsByRecipient[toEmail] = [];
+                        itemsByRecipient[toEmail].push(item);
+                    });
+                    await batch.commit();
 
-                    setNewItem(''); 
-                    setQuantity(''); 
+                    await Promise.all(Object.entries(itemsByRecipient).map(([toEmail, items]) => {
+                        const rows = items.map(item => `<tr><td>${item.name}</td><td>${item.quantity} ${item.unit || 'un'}</td><td>${CAT_LABELS_CLEAN[item.category] || item.category}</td></tr>`).join('');
+                        const htmlMsg = `
+                            <div style="font-family: sans-serif; color: #333;">
+                                <h2 style="color: #2563eb;">Nova Solicitação de Estoque</h2>
+                                <p><b>${appUser.name}</b> (${sectorReq || appUser.sector}) solicitou os itens abaixo:</p>
+                                <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 600px;">
+                                    <thead><tr><th>Item</th><th>Quantidade</th><th>Categoria</th></tr></thead>
+                                    <tbody>${rows}</tbody>
+                                </table>
+                                <p><b>Urgente:</b> ${isUrgent ? 'SIM 🔴' : 'Não'}</p>
+                                <p><b>Observações:</b> ${notes || '-'}</p>
+                            </div>
+                        `;
+                        return sendEmailNotification(toEmail, `Nova solicitação: ${items.length} ${items.length === 1 ? 'item' : 'itens'}`, htmlMsg);
+                    }));
+
+                    setSelectedRequestItems([]);
+                    setInventorySearchTerm('');
                     setNotes(''); 
-                    setItemCodeReq('');
-                    setStorageLocationReq('');
+                    setIsUrgent(false);
+                    setManualRequestItem('');
+                    setManualRequestQuantity('1');
                     setSectorReq('');
-                    localStorage.removeItem('labflow_draft_v1'); 
-                    showAlert('Solicitação cadastrada e enviada para aprovação!'); 
+                    localStorage.removeItem('labflow_draft_v1');
+                    localStorage.removeItem('labflow_draft_v2');
+                    showAlert(`Solicitação com ${selectedRequestItems.length} ${selectedRequestItems.length === 1 ? 'item' : 'itens'} enviada para aprovação!`); 
                 } catch(error) {
                     console.error(error);
                     showAlert('Erro ao enviar solicitação.');
@@ -2722,106 +2826,93 @@
                                             )}
                                         </div>
                                         <form onSubmit={handleSubmitRequest} className="space-y-4">
-                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                                                <div className="md:col-span-5">
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Item</label>
-                                                    {appUser.role === 'master' && CAT_GROUPS.logistics.includes(category) ? (
-                                                        <input 
-                                                            type="text" 
-                                                            value={newItem} 
-                                                            onChange={(e) => setNewItem(e.target.value)} 
-                                                            placeholder="Digite o nome do item livremente..."
-                                                            className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none"
-                                                            required 
-                                                        />
-                                                    ) : (
-                                                        <select 
-                                                            value={newItem} 
-                                                            onChange={handleItemChange} 
-                                                            className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer text-sm md:text-base font-medium text-slate-700"
-                                                            required
-                                                        >
-                                                            <option value="" disabled>Selecione um item do estoque...</option>
-                                                            {inventoryNames.map((name, i) => {
-                                                                const itemData = inventoryMap[name.toLowerCase()];
-                                                                const total = itemData ? itemData.totalQty : 0;
-                                                                const isAvail = total > 0;
-                                                                const icon = isAvail ? '🟢' : '🔴';
-                                                                const sup = toSuperscript(total);
-                                                                return (
-                                                                    <option key={i} value={name}>{icon} {name} {sup}</option>
-                                                                );
-                                                            })}
-                                                        </select>
-                                                    )}
+                                            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                                                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                                                    <div>
+                                                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">Selecione os itens do estoque</label>
+                                                        <p className="mt-1 text-xs text-slate-500">Marque vários itens; eles estão agrupados por tipo.</p>
+                                                    </div>
+                                                    <input type="search" value={inventorySearchTerm} onChange={e => setInventorySearchTerm(e.target.value)} placeholder="Buscar item..." className="w-full rounded-lg border border-slate-300 bg-white p-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 sm:max-w-xs" />
                                                 </div>
-                                                <div className="md:col-span-2">
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Qtd</label>
-                                                    <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" required />
-                                                </div>
-                                                <div className="md:col-span-2">
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Unid</label>
-                                                    <select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer">
-                                                        <option value="un">Unid.</option>
-                                                        <option value="cx">Caixa</option>
-                                                        <option value="ml">ml</option>
-                                                        <option value="L">L</option>
-                                                        <option value="kg">kg</option>
-                                                        <option value="pct">Pacote</option>
-                                                        <option value="FR">Frasco</option>
-                                                    </select>
-                                                </div>
-                                                <div className="md:col-span-3">
-                                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Categoria</label>
-                                                    <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer">
-                                                        {appUser.role === 'lab_tech' || techSubTab === 'admin' || (appUser.role === 'master' && !CAT_GROUPS.logistics.includes(category)) ? (
-                                                            <optgroup label="Adm (Escritório)">
-                                                                <option value="epi">🥽 EPI</option>
-                                                                <option value="escritorio">📎 Escritório</option>
-                                                                <option value="consumivel_adm">🗑️ Consumível (ADM)</option>
-                                                            </optgroup>
-                                                        ) : (
-                                                            <optgroup label="Almoxarifado (Logística)">
-                                                                <option value="reagente">🧪 Reagente</option>
-                                                                <option value="materiais">📦 Materiais</option>
-                                                                <option value="consumivel_log">🧴 Consumível (Lab)</option>
-                                                            </optgroup>
-                                                        )}
-                                                        {appUser.role === 'master' && (
-                                                            <optgroup label="Todas as Categorias">
-                                                                <option value="epi">🥽 EPI</option>
-                                                                <option value="escritorio">📎 Escritório</option>
-                                                                <option value="consumivel_adm">🗑️ Consumível (ADM)</option>
-                                                                <option value="reagente">🧪 Reagente</option>
-                                                                <option value="materiais">📦 Materiais</option>
-                                                                <option value="consumivel_log">🧴 Consumível (Lab)</option>
-                                                            </optgroup>
-                                                        )}
-                                                    </select>
+                                                <div className="mt-4 max-h-80 space-y-3 overflow-y-auto pr-1">
+                                                    {requestItemGroups.length === 0 ? (
+                                                        <p className="rounded-lg bg-white p-4 text-center text-sm text-slate-500">Nenhum item encontrado. Tente outra busca.</p>
+                                                    ) : requestItemGroups.map(([groupName, items]) => {
+                                                        const selectedCount = items.filter(item => selectedRequestItems.some(selected => selected.key === item.key)).length;
+                                                        const allSelected = items.length > 0 && selectedCount === items.length;
+                                                        return (
+                                                            <section key={groupName} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                                                <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-3 py-2">
+                                                                    <div><h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">{groupName}</h3><span className="text-[10px] text-slate-400">{items.length} itens</span></div>
+                                                                    <button type="button" onClick={() => toggleRequestItemGroup(items)} className="text-xs font-bold text-blue-700 hover:text-blue-900">{allSelected ? 'Limpar categoria' : 'Selecionar todos'}</button>
+                                                                </div>
+                                                                <div className="grid gap-1 p-2 sm:grid-cols-2">
+                                                                    {items.map(item => {
+                                                                        const isSelected = selectedRequestItems.some(selected => selected.key === item.key);
+                                                                        return (
+                                                                            <label key={item.key} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-2.5 transition ${isSelected ? 'border-blue-300 bg-blue-50' : 'border-transparent hover:border-slate-200 hover:bg-slate-50'}`}>
+                                                                                <input type="checkbox" checked={isSelected} onChange={() => toggleRequestItem(item)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                                                                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-slate-700">{item.name}</span><span className={`block text-[10px] ${item.totalQty > 0 ? 'text-emerald-700' : 'text-red-600'}`}>{item.totalQty > 0 ? 'Disponível' : 'Sem saldo'}: {item.totalQty} {item.unit}</span></span>
+                                                                            </label>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </section>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
 
+                                            {selectedRequestItems.length > 0 && (
+                                                <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-4">
+                                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                                        <h3 className="text-sm font-bold text-slate-800">Itens selecionados ({selectedRequestItems.length})</h3>
+                                                        <button type="button" onClick={() => setSelectedRequestItems([])} className="text-xs font-semibold text-red-600 hover:text-red-800">Limpar seleção</button>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        {selectedRequestItems.map(item => (
+                                                            <div key={item.key} className="rounded-lg border border-slate-200 bg-white p-3">
+                                                                <div className="mb-3 flex items-start justify-between gap-3">
+                                                                    <div className="min-w-0"><p className="truncate text-sm font-bold text-slate-800">{item.name}</p><p className="text-[10px] text-slate-500">{getRequestItemGroup(item)}{item.isManual ? ' · informado pelo Master' : ''}</p></div>
+                                                                    <button type="button" onClick={() => setSelectedRequestItems(current => current.filter(selected => selected.key !== item.key))} aria-label={`Remover ${item.name}`} className="rounded px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50">Remover</button>
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                                                    <label className="text-[10px] font-bold uppercase text-slate-500">Quantidade<input type="number" min="1" step="1" value={item.quantity} onChange={e => updateSelectedRequestItem(item.key, 'quantity', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm font-normal text-slate-700" required /></label>
+                                                                    <label className="text-[10px] font-bold uppercase text-slate-500">Unidade<select value={item.unit} onChange={e => updateSelectedRequestItem(item.key, 'unit', e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm font-normal text-slate-700"><option value="un">Unid.</option><option value="cx">Caixa</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">Pacote</option><option value="FR">Frasco</option></select></label>
+                                                                    {appUser.role === 'master' && <label className="text-[10px] font-bold uppercase text-slate-500">Código<input type="text" value={item.itemCode} onChange={e => updateSelectedRequestItem(item.key, 'itemCode', e.target.value)} placeholder="Opcional" className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm font-normal text-slate-700" /></label>}
+                                                                    {appUser.role === 'master' && <label className="text-[10px] font-bold uppercase text-slate-500">Local<input type="text" value={item.storageLocation} onChange={e => updateSelectedRequestItem(item.key, 'storageLocation', e.target.value)} placeholder="Opcional" className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm font-normal text-slate-700" /></label>}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </section>
+                                            )}
+
+                                            {appUser.role === 'master' && techSubTab === 'logistics' && (
+                                                <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                                                    <h3 className="text-xs font-bold uppercase tracking-wide text-amber-900">Adicionar item fora do estoque</h3>
+                                                    <p className="mb-3 mt-1 text-xs text-amber-800">Para solicitações manuais da Logística, sem cadastro atual no estoque.</p>
+                                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                                                        <input type="text" value={manualRequestItem} onChange={e => setManualRequestItem(e.target.value)} placeholder="Nome do item" className="rounded-lg border border-amber-200 bg-white p-2 text-sm lg:col-span-2" />
+                                                        <select value={manualRequestCategory} onChange={e => setManualRequestCategory(e.target.value)} className="rounded-lg border border-amber-200 bg-white p-2 text-sm">{CAT_GROUPS.logistics.map(cat => <option key={cat} value={cat}>{CAT_LABELS[cat] || cat}</option>)}</select>
+                                                        <input type="number" min="1" step="1" value={manualRequestQuantity} onChange={e => setManualRequestQuantity(e.target.value)} aria-label="Quantidade do item manual" className="rounded-lg border border-amber-200 bg-white p-2 text-sm" />
+                                                        <div className="flex gap-2"><select value={manualRequestUnit} onChange={e => setManualRequestUnit(e.target.value)} aria-label="Unidade do item manual" className="min-w-0 flex-1 rounded-lg border border-amber-200 bg-white p-2 text-sm"><option value="un">Unid.</option><option value="cx">Caixa</option><option value="ml">ml</option><option value="L">L</option><option value="kg">kg</option><option value="pct">Pacote</option><option value="FR">Frasco</option></select><button type="button" onClick={addManualRequestItem} disabled={!manualRequestItem.trim() || !manualRequestQuantity || !Number.isInteger(Number(manualRequestQuantity)) || Number(manualRequestQuantity) < 1} className="rounded-lg bg-amber-700 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Adicionar</button></div>
+                                                    </div>
+                                                </section>
+                                            )}
+
                                             {appUser.role === 'master' && (
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-100 pt-4">
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Código</label>
-                                                        <input type="text" value={itemCodeReq} onChange={(e) => setItemCodeReq(e.target.value)} placeholder="Código (Opcional)" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Local</label>
-                                                        <input type="text" value={storageLocationReq} onChange={(e) => setStorageLocationReq(e.target.value)} placeholder="Local (Opcional)" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Setor Destino</label>
-                                                        <select value={sectorReq} onChange={(e) => setSectorReq(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg outline-none cursor-pointer">
+                                                <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center">
+                                                    <label className="w-full text-xs font-bold uppercase tracking-wider text-slate-500 sm:max-w-xs">Setor Destino
+                                                        <select value={sectorReq} onChange={(e) => setSectorReq(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm font-normal text-slate-700">
                                                             <option value="">Para mim ({appUser.sector})</option>
                                                             {SETORES.map(s => <option key={s} value={s}>{s}</option>)}
                                                         </select>
-                                                    </div>
+                                                    </label>
                                                 </div>
                                             )}
 
-                                            <div className="flex flex-col md:flex-row gap-4 items-center"><input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações..." className="flex-1 w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm outline-none" /><div className="flex items-center gap-3 w-full md:w-auto"><label className="flex items-center gap-2 cursor-pointer bg-red-50 text-red-700 px-3 py-2.5 rounded-lg border border-red-100 hover:bg-red-100 transition whitespace-nowrap"><input type="checkbox" checked={isUrgent} onChange={(e) => setIsUrgent(e.target.checked)} className="w-4 h-4 text-red-600 rounded" /><span className="font-semibold text-sm">Urgente</span></label><button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold shadow-md transition whitespace-nowrap">Adicionar</button></div></div>
+                                            <div className="flex flex-col gap-4 md:flex-row md:items-center"><input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Observações para todos os itens..." className="w-full flex-1 rounded-lg border border-slate-300 bg-slate-50 p-2.5 text-sm outline-none" /><div className="flex w-full items-center gap-3 md:w-auto"><label className="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg border border-red-100 bg-red-50 px-3 py-2.5 text-red-700 transition hover:bg-red-100"><input type="checkbox" checked={isUrgent} onChange={e => setIsUrgent(e.target.checked)} className="h-4 w-4 rounded text-red-600" /><span className="text-sm font-semibold">Urgente</span></label><button type="submit" disabled={selectedRequestItems.length === 0 || selectedRequestItems.some(item => !item.quantity || !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1)} className="flex-1 whitespace-nowrap rounded-lg bg-blue-600 px-6 py-2.5 font-bold text-white shadow-md transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">Enviar solicitação ({selectedRequestItems.length})</button></div></div>
                                         </form>
                                     </div>
                                 )}
